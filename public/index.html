@@ -1,23 +1,58 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Country Game</title>
-    <script src="/socket.io/socket.io.js"></script>
+  <meta charset="UTF-8" />
+  <title>Country Reaction Game</title>
+  <style>
+    body { background:#101020; color:white; font-family:Arial,sans-serif; text-align:center; }
+    #country { font-size:72px; margin-top:80px; }
+    #info { margin-top:20px; font-size:20px; }
+    #scores { margin-top:40px; font-size:18px; }
+    #message { margin-top:20px; color:#ffd700; }
+  </style>
 </head>
 <body>
-    <h1>Country Game</h1>
-    <button id="buzz">BUZZ</button>
+  <h1>Country Reaction Game</h1>
+  <div id="you"></div>
+  <div id="country">---</div>
+  <div id="info">Waiting for players...</div>
+  <div id="scores"></div>
+  <div id="message"></div>
 
-    <script>
-        const socket = io();
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io();
+    let myKey = null;
 
-        document.getElementById("buzz").onclick = () => {
-            socket.emit("buzz");
-        };
+    const youDiv = document.getElementById("you");
+    const countryDiv = document.getElementById("country");
+    const infoDiv = document.getElementById("info");
+    const scoresDiv = document.getElementById("scores");
+    const messageDiv = document.getElementById("message");
 
-        socket.on("buzzed", (id) => {
-            alert("Player buzzed: " + id);
-        });
-    </script>
+    socket.on("youAre", ({ name, key }) => {
+      myKey = key;
+      youDiv.textContent = `You are ${name}. Your key: ${key.toUpperCase()}`;
+    });
+
+    socket.on("newCountry", ({ country, target }) => {
+      countryDiv.textContent = country;
+      infoDiv.textContent = `Press your key when you see: ${target}`;
+    });
+
+    socket.on("gameState", ({ scores, message }) => {
+      scoresDiv.textContent = scores
+        .map(s => `${s.name} (${s.key.toUpperCase()}): ${s.score}`)
+        .join("   |   ");
+      messageDiv.textContent = message || "";
+    });
+
+    document.addEventListener("keydown", e => {
+      if (!myKey) return;
+      if (e.key.toLowerCase() === myKey.toLowerCase()) {
+        socket.emit("keyPressed");
+      }
+    });
+  </script>
 </body>
 </html>
