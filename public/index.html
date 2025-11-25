@@ -4,17 +4,97 @@
   <meta charset="UTF-8" />
   <title>Country Reaction Game</title>
   <style>
-    body { background:#101020; color:white; font-family:Arial,sans-serif; text-align:center; }
-    #country { font-size:72px; margin-top:80px; }
-    #info { margin-top:20px; font-size:20px; }
-    #scores { margin-top:40px; font-size:18px; }
-    #message { margin-top:20px; color:#ffd700; }
-    table { margin:0 auto; border-spacing:15px; font-size:22px; color:#fff; }
-    th { color:#00e6e6; }
+    body {
+      min-height: 100vh;
+      background: linear-gradient(135deg, #0d1b2a, #1e2746 57%, #1fa2ff 100%);
+      color: #fff;
+      font-family: 'Segoe UI', 'Arial', sans-serif;
+      text-align: center;
+      margin: 0;
+    }
+    h1 {
+      font-size: 2.2em;
+      font-weight: 700;
+      letter-spacing: 2px;
+      margin-top: 30px;
+      color: #f9ca24;
+      text-shadow: 2px 2px 4px #0d1b2a88;
+    }
+    #country {
+      font-size: 3em;
+      font-weight: 700;
+      margin-top: 90px;
+      color: #45aaf2;
+      text-shadow: 2px 2px 12px #1fa2ff77;
+      transition: color 0.3s, transform 0.3s;
+    }
+    #info, #round, #countdown {
+      margin-top: 18px;
+      font-size: 1.3em;
+      font-weight: 500;
+      color: #fed330;
+      text-shadow: 1px 1px 4px #d3540099;
+      padding: 4px 0;
+    }
+    #scores {
+      margin-top: 38px;
+      font-size: 1.05em;
+    }
+    #message {
+      margin-top: 24px;
+      font-size: 1.2em;
+      color: #20e6a3;
+      font-weight: 600;
+      text-shadow: 0px 1px 8px #20e6a355;
+    }
+    table {
+      margin: 0 auto;
+      border-radius: 12px;
+      background: #232548d6;
+      box-shadow: 0 6px 12px #0d1b2a50;
+      border-spacing: 16px;
+      font-size: 1.3em;
+    }
+    th {
+      color: #fd79a8;
+      font-weight: 700;
+      padding-bottom: 8px;
+      border-bottom: 2px solid #fd79a8;
+    }
+    td {
+      color: #f5f6fa;
+      padding: 8px 22px;
+      border-radius: 6px;
+    }
+    tr:nth-child(even) td {
+      background: #353b48bb;
+    }
+    #bgMusic {
+      display: none;
+    }
+    button {
+      position: fixed;
+      top: 18px;
+      right: 18px;
+      background: #1fa2ff;
+      color: #fff;
+      border: none;
+      border-radius: 50%;
+      font-size: 2em;
+      width: 44px;
+      height: 44px;
+      box-shadow: 0 2px 7px #1fa2ff55;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #20e6a3;
+    }
   </style>
 </head>
 <body>
   <h1>Country Reaction Game</h1>
+  <div id="round"></div>
+  <div id="countdown"></div>
   <div id="you"></div>
   <div id="country">---</div>
   <div id="info">Waiting for players...</div>
@@ -22,13 +102,15 @@
   <div id="message"></div>
   <audio id="bgMusic" src="game-music.mp3" loop></audio>
   <button onclick="document.getElementById('bgMusic').muted=!document.getElementById('bgMusic').muted"
-    style="position:fixed;top:15px;right:15px;z-index:10;">🔊</button>
+    style="position:fixed;top:18px;right:18px;z-index:10;">🔊</button>
 
   <script src="/socket.io/socket.io.js"></script>
   <script>
     const socket = io();
     let lastCountryTime = null;
 
+    const roundDiv = document.getElementById("round");
+    const countdownDiv = document.getElementById("countdown");
     const youDiv = document.getElementById("you");
     const countryDiv = document.getElementById("country");
     const infoDiv = document.getElementById("info");
@@ -40,9 +122,20 @@
       youDiv.textContent = `${name}: Press SPACE (computer) or TAP (phone) when you hear/see the target country.`;
     });
 
-    socket.on("announceTarget", ({ target }) => {
+    socket.on("countdown", ({ round }) => {
+      countdownDiv.textContent = "Get ready! Round " + round + " begins in...";
+      let count = 3;
+      let timer = setInterval(() => {
+        countdownDiv.textContent = count > 0 ? count : "";
+        if (count === 0) clearInterval(timer);
+        count--;
+      }, 1000);
+    });
+
+    socket.on("announceTarget", ({ target, round }) => {
       countryDiv.textContent = "TARGET COUNTRY: " + target;
       infoDiv.textContent = "Get ready!";
+      countdownDiv.textContent = "";
       if ('speechSynthesis' in window) {
         let utter = new SpeechSynthesisUtterance("Target country is " + target);
         utter.lang = "en-US";
@@ -53,6 +146,8 @@
 
     socket.on("newCountry", ({ country, target, ts }) => {
       countryDiv.textContent = country;
+      countryDiv.style.transform = "scale(1.27)";
+      setTimeout(() => countryDiv.style.transform = "scale(1)", 150);
       infoDiv.textContent = `Press SPACE or TAP when you see/hear: ${target}`;
       lastCountryTime = ts;
 
@@ -64,19 +159,20 @@
       }
     });
 
-    socket.on("gameState", ({ scores, message }) => {
-      // Scoreboard as a table
-      let html = '<table><tr><th>Name</th><th>Score</th><th>Reaction Time</th></tr>';
+    socket.on("gameState", ({ scores, message, round, target }) => {
+      let html = '<table><tr><th>Name</th><th>Score</th><th>Round Score</th><th>Reaction Time</th></tr>';
       scores.forEach(s => {
         html += `<tr>
           <td>${s.name}</td>
           <td>${s.score}</td>
+          <td>${s.roundScore || 0}</td>
           <td>${s.reactionTime ? (s.reactionTime/1000).toFixed(3) + "s" : "-"}</td>
         </tr>`;
       });
       html += '</table>';
       scoresDiv.innerHTML = html;
       messageDiv.textContent = message || "";
+      roundDiv.textContent = `Round ${round || 1}`;
     });
 
     function sendReaction() {
@@ -85,16 +181,12 @@
       socket.emit("keyPressed", { reactionTime });
     }
 
-    // Space key for computers
     document.addEventListener("keydown", e => {
       if (e.code === "Space" || e.key === " ") sendReaction();
     });
-
-    // Touch/click for mobile devices
     document.addEventListener("touchstart", sendReaction);
     document.addEventListener("click", sendReaction);
 
-    // Music: start on first input, allow mute
     window.addEventListener("DOMContentLoaded", function() {
       function startMusic() {
         if (bgMusic.paused) {
