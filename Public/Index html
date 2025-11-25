@@ -1,1 +1,23 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Country Game</title>
+    <script src="/socket.io/socket.io.js"></script>
+</head>
+<body>
+    <h1>Country Game</h1>
+    <button id="buzz">BUZZ</button>
 
+    <script>
+        const socket = io();
+
+        document.getElementById("buzz").onclick = () => {
+            socket.emit("buzz");
+        };
+
+        socket.on("buzzed", (id) => {
+            alert("Player buzzed: " + id);
+        });
+    </script>
+</body>
+</html>
