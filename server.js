@@ -17,25 +17,26 @@ const COUNTRIES = [
   "Denmark", "Poland", "Austria", "Switzerland"
 ];
 
-let TARGET = "Spain";  // Set your target country here or make it dynamic
-
+let TARGET = "Spain";  // You can make this dynamic if you want
 const WORD_INTERVAL = 2000; // milliseconds
 
 let currentCountry = "";
 let players = {};
 let playerOrder = [];
 let gameStarted = false;
+let countryAnnounceTime = Date.now();
 
 function pickCountry() {
   currentCountry = COUNTRIES[Math.floor(Math.random() * COUNTRIES.length)];
-  io.emit("newCountry", { country: currentCountry, target: TARGET });
+  countryAnnounceTime = Date.now();
+  io.emit("newCountry", { country: currentCountry, target: TARGET, ts: countryAnnounceTime });
 }
 
 function broadcastState(message = "") {
   const scores = Object.values(players).map(p => ({
     name: p.name,
-    key: p.key,
-    score: p.score
+    score: p.score,
+    reactionTime: p.reactionTime || null
   }));
   io.emit("gameState", { scores, message });
 }
@@ -49,32 +50,40 @@ io.on("connection", socket => {
   console.log("New client connected:", socket.id);
 
   let name = "Player " + (playerOrder.length + 1);
-  let key = playerOrder.length === 0 ? "x" : "m";
 
-  players[socket.id] = { name, key, score: 0 };
+  players[socket.id] = { name, score: 0, reactionTime: null };
   playerOrder.push(socket.id);
 
-  socket.emit("youAre", { name, key });
+  socket.emit("youAre", { name });
   broadcastState(`${name} joined the game`);
 
   if (playerOrder.length === 2 && !gameStarted) {
     gameStarted = true;
-    pickCountry();
-    broadcastState("Game started! React when you see " + TARGET);
+
+    // Announce target country first
+    io.emit("announceTarget", { target: TARGET });
+
+    setTimeout(() => {
+      pickCountry();
+      broadcastState("Game started! React when you see " + TARGET);
+    }, 2000);
   }
 
-  socket.on("keyPressed", () => {
+  socket.on("keyPressed", ({ reactionTime }) => {
     if (!gameStarted) return;
     const player = players[socket.id];
     if (!player) return;
 
+    player.reactionTime = reactionTime; // Save the latest value
+    let msg = "";
     if (currentCountry === TARGET) {
       player.score++;
-      broadcastState(`${player.name} was correct! (+1)`);
+      msg = `${player.name} was correct! (+1) Reaction time: ${(reactionTime/1000).toFixed(3)}s`;
     } else {
       player.score--;
-      broadcastState(`${player.name} was wrong! (-1)`);
+      msg = `${player.name} was wrong! (-1) Reaction time: ${(reactionTime/1000).toFixed(3)}s`;
     }
+    broadcastState(msg);
   });
 
   socket.on("disconnect", () => {
@@ -85,7 +94,7 @@ io.on("connection", socket => {
 
     if (playerOrder.length < 2) {
       gameStarted = false;
-      io.emit("newCountry", { country: "---", target: TARGET });
+      io.emit("newCountry", { country: "---", target: TARGET, ts: Date.now() });
     }
   });
 });
