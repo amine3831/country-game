@@ -9,6 +9,8 @@
     #info { margin-top:20px; font-size:20px; }
     #scores { margin-top:40px; font-size:18px; }
     #message { margin-top:20px; color:#ffd700; }
+    table { margin:0 auto; border-spacing:15px; font-size:22px; color:#fff; }
+    th { color:#00e6e6; }
   </style>
 </head>
 <body>
@@ -18,40 +20,91 @@
   <div id="info">Waiting for players...</div>
   <div id="scores"></div>
   <div id="message"></div>
+  <audio id="bgMusic" src="game-music.mp3" loop></audio>
+  <button onclick="document.getElementById('bgMusic').muted=!document.getElementById('bgMusic').muted"
+    style="position:fixed;top:15px;right:15px;z-index:10;">🔊</button>
 
   <script src="/socket.io/socket.io.js"></script>
   <script>
     const socket = io();
-    let myKey = null;
+    let lastCountryTime = null;
 
     const youDiv = document.getElementById("you");
     const countryDiv = document.getElementById("country");
     const infoDiv = document.getElementById("info");
     const scoresDiv = document.getElementById("scores");
     const messageDiv = document.getElementById("message");
+    const bgMusic = document.getElementById("bgMusic");
 
-    socket.on("youAre", ({ name, key }) => {
-      myKey = key;
-      youDiv.textContent = `You are ${name}. Your key: ${key.toUpperCase()}`;
+    socket.on("youAre", ({ name }) => {
+      youDiv.textContent = `${name}: Press SPACE (computer) or TAP (phone) when you hear/see the target country.`;
     });
 
-    socket.on("newCountry", ({ country, target }) => {
+    socket.on("announceTarget", ({ target }) => {
+      countryDiv.textContent = "TARGET COUNTRY: " + target;
+      infoDiv.textContent = "Get ready!";
+      if ('speechSynthesis' in window) {
+        let utter = new SpeechSynthesisUtterance("Target country is " + target);
+        utter.lang = "en-US";
+        window.speechSynthesis.cancel();
+        window.speechSynthesis.speak(utter);
+      }
+    });
+
+    socket.on("newCountry", ({ country, target, ts }) => {
       countryDiv.textContent = country;
-      infoDiv.textContent = `Press your key when you see: ${target}`;
+      infoDiv.textContent = `Press SPACE or TAP when you see/hear: ${target}`;
+      lastCountryTime = ts;
+
+      if ('speechSynthesis' in window) {
+        let utter = new SpeechSynthesisUtterance(country);
+        utter.lang = "en-US";
+        window.speechSynthesis.cancel();
+        window.speechSynthesis.speak(utter);
+      }
     });
 
     socket.on("gameState", ({ scores, message }) => {
-      scoresDiv.textContent = scores
-        .map(s => `${s.name} (${s.key.toUpperCase()}): ${s.score}`)
-        .join("   |   ");
+      // Scoreboard as a table
+      let html = '<table><tr><th>Name</th><th>Score</th><th>Reaction Time</th></tr>';
+      scores.forEach(s => {
+        html += `<tr>
+          <td>${s.name}</td>
+          <td>${s.score}</td>
+          <td>${s.reactionTime ? (s.reactionTime/1000).toFixed(3) + "s" : "-"}</td>
+        </tr>`;
+      });
+      html += '</table>';
+      scoresDiv.innerHTML = html;
       messageDiv.textContent = message || "";
     });
 
+    function sendReaction() {
+      if (!lastCountryTime) return;
+      const reactionTime = Date.now() - lastCountryTime;
+      socket.emit("keyPressed", { reactionTime });
+    }
+
+    // Space key for computers
     document.addEventListener("keydown", e => {
-      if (!myKey) return;
-      if (e.key.toLowerCase() === myKey.toLowerCase()) {
-        socket.emit("keyPressed");
+      if (e.code === "Space" || e.key === " ") sendReaction();
+    });
+
+    // Touch/click for mobile devices
+    document.addEventListener("touchstart", sendReaction);
+    document.addEventListener("click", sendReaction);
+
+    // Music: start on first input, allow mute
+    window.addEventListener("DOMContentLoaded", function() {
+      function startMusic() {
+        if (bgMusic.paused) {
+          bgMusic.volume = 0.3;
+          bgMusic.play();
+        }
       }
+      document.addEventListener("keydown", startMusic);
+      document.addEventListener("touchstart", startMusic);
+      document.addEventListener("click", startMusic);
     });
   </script>
 </body>
