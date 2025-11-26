@@ -16,36 +16,36 @@ const COUNTRIES = [
   "Denmark", "Poland", "Austria", "Switzerland"
 ];
 
-let TARGET = COUNTRIES[0];          // Initialized, will shuffle each round
-const WORD_INTERVAL = 2000;         // ms between country names
-const ROUND_LENGTH = 20;            // seconds per round
+const WINNING_SCORE = 2;   // First to 2 points wins match
+const WORD_INTERVAL = 2000;     // ms
+const ROUND_LENGTH = 20;        // seconds
 
+let TARGET = COUNTRIES[0];
+let prevTargetIdx = -1;
 let currentCountry = "";
 let players = {};
 let playerOrder = [];
 let gameStarted = false;
 let countryAnnounceTime = Date.now();
 let round = 1;
-let prevTargetIdx = -1;
 
-// Selects a new target country, never repeats immediate previous target
 function selectNewTarget() {
   let idx;
   do {
     idx = Math.floor(Math.random() * COUNTRIES.length);
-  } while (idx === prevTargetIdx); // Prevent repeat
+  } while (idx === prevTargetIdx); // No repeat
   prevTargetIdx = idx;
   return COUNTRIES[idx];
 }
 
 function startRound() {
   TARGET = selectNewTarget();
-  Object.values(players).forEach(p => { p.reactionTime = null; p.roundScore = 0; });
+  Object.values(players).forEach(p => { p.reactionTime = null; p.roundScore = 0; p.hasReacted = false; });
   io.emit("countdown", { round });
   setTimeout(() => {
-    io.emit("announceTarget", { target: TARGET, round }); // Say target country
-    setTimeout(() => runRound(), 1200);                   // Start after spoken
-  }, 3500);                                               // After countdown
+    io.emit("announceTarget", { target: TARGET, round });
+    setTimeout(() => runRound(), 1200);
+  }, 3500);
 }
 
 function runRound() {
@@ -58,17 +58,34 @@ function runRound() {
       endRound();
     }
   }, WORD_INTERVAL);
-  broadcastState(`Round ${round} started! React when you see "${TARGET}"`);
+  broadcastState(`Round ${round} started! Listen for "${TARGET}"`);
 }
 
 function endRound() {
   gameStarted = false;
-  let scores = Object.values(players).map(p => ({ name: p.name, score: p.roundScore || 0 }));
+  let scores = Object.values(players).map(p => ({ id: p.id, name: p.name, score: p.roundScore || 0 }));
   let maxScore = Math.max(...scores.map(s => s.score));
-  let winners = scores.filter(s => s.score === maxScore);
-  let winnerText = (winners.length > 1) ? "It's a tie!" : `${winners[0].name} wins the round!`;
+  let winners = scores.filter(s => s.score === maxScore && maxScore > 0);
+  let winnerText = "No points awarded!";
+  // Add match point for round winner
+  if (winners.length === 1) {
+    let winnerPlayer = Object.values(players).find(p => p.name === winners[0].name);
+    winnerPlayer.matchScore = (winnerPlayer.matchScore || 0) + 1;
+    winnerText = `${winnerPlayer.name} wins the round and scores a point!`;
+  } else if (winners.length > 1) {
+    winnerText = "It's a tie!";
+  }
   broadcastState(`Round ${round} ended! ${winnerText}`);
   io.emit("newCountry", { country: "---", target: TARGET, ts: Date.now() });
+
+  // Check for match winner
+  let matchWinner = Object.values(players).find(p => (p.matchScore || 0) >= WINNING_SCORE);
+  if (matchWinner) {
+    broadcastState(`${matchWinner.name} wins the game!`);
+    gameStarted = false;
+    setTimeout(() => process.exit(), 7000); // Or reset game state if desired
+    return;
+  }
   setTimeout(() => { round += 1; startRound(); }, 4000);
 }
 
@@ -81,16 +98,17 @@ function pickCountry() {
 function broadcastState(message = "") {
   const scores = Object.values(players).map(p => ({
     name: p.name,
-    score: p.score,
+    matchScore: p.matchScore || 0,
     roundScore: p.roundScore || 0,
     reactionTime: p.reactionTime || null
   }));
   io.emit("gameState", { scores, message, round, target: TARGET });
 }
 
+// Track only first reaction per player per country
 io.on("connection", socket => {
   let name = "Player " + (playerOrder.length + 1);
-  players[socket.id] = { name, score: 0, reactionTime: null, roundScore: 0 };
+  players[socket.id] = { id: socket.id, name, matchScore: 0, score: 0, reactionTime: null, roundScore: 0, hasReacted: false };
   playerOrder.push(socket.id);
   socket.emit("youAre", { name });
   broadcastState(`${name} joined the game`);
@@ -103,16 +121,22 @@ io.on("connection", socket => {
   socket.on("keyPressed", ({ reactionTime }) => {
     if (!gameStarted) return;
     const player = players[socket.id];
-    if (!player) return;
+    if (!player || player.hasReacted) return;
+    player.hasReacted = true;
     player.reactionTime = reactionTime;
     let msg;
+    // Correct player: record a point for round score ONLY for correct answer
     if (currentCountry === TARGET) {
-      player.score++;
       player.roundScore++;
-      msg = `${player.name} was correct! (+1) Reaction time: ${(reactionTime/1000).toFixed(3)}s`;
+      msg = `${player.name} was correct! (+1 round point)`;
     } else {
-      player.score--;
-      msg = `${player.name} was wrong! (-1) Reaction time: ${(reactionTime/1000).toFixed(3)}s`;
+      // Penalize, point to opponent
+      let others = Object.values(players).filter(p => p.id !== socket.id);
+      if (others.length === 1) {
+        others[0].matchScore = (others[0].matchScore || 0) + 1;
+        msg = `${player.name} false start! ${others[0].name} gains a match point!`;
+      }
+      else msg = `${player.name} false start!`;
     }
     broadcastState(msg);
   });
@@ -129,4 +153,4 @@ io.on("connection", socket => {
 
 server.listen(PORT, () => {
   console.log(`Server listening on port ${PORT}`);
-});
+});   
