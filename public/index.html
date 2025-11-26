@@ -4,74 +4,75 @@
   <meta charset="UTF-8" />
   <title>Country Reaction Game</title>
   <style>
+    html, body {
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
     body {
       min-height: 100vh;
-      background: linear-gradient(135deg, #0d1b2a, #1e2746 57%, #1fa2ff 100%);
-      color: #fff;
-      font-family: 'Segoe UI', 'Arial', sans-serif;
-      text-align: center;
-      margin: 0;
+      width: 100vw;
+      min-width: 100vw;
+      min-height: 100vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      background: linear-gradient(135deg, #192b47 70%, #1fa2ff 100%);
     }
     h1 {
-      font-size: 2.2em;
-      font-weight: 700;
-      letter-spacing: 2px;
-      margin-top: 30px;
-      color: #f9ca24;
-      text-shadow: 2px 2px 4px #0d1b2a88;
-    }
-    #country {
       font-size: 3em;
-      font-weight: 700;
-      margin-top: 90px;
-      color: #45aaf2;
-      text-shadow: 2px 2px 12px #1fa2ff77;
-      transition: color 0.3s, transform 0.3s;
-    }
-    #info, #round, #countdown {
-      margin-top: 18px;
-      font-size: 1.3em;
-      font-weight: 500;
+      letter-spacing: 3px;
       color: #fed330;
-      text-shadow: 1px 1px 4px #d3540099;
-      padding: 4px 0;
+      text-shadow: 3px 4px 14px #1fa2ffaa;
+      margin-top: 0;
+      margin-bottom: 28px;
+    }
+    #info, #round, #countdown, #you, #message {
+      font-size: 2.1em;
+      font-weight: bold;
+      padding: 18px 10px;
+      text-align: center;
+    }
+    #info, #countdown, #message {
+      color: #fff;
+      text-shadow: 3px 2px 14px #45aaf2;
     }
     #scores {
-      margin-top: 38px;
-      font-size: 1.05em;
-    }
-    #message {
-      margin-top: 24px;
-      font-size: 1.2em;
-      color: #20e6a3;
-      font-weight: 600;
-      text-shadow: 0px 1px 8px #20e6a355;
+      margin-top: 44px;
+      min-width: 70vw;
+      width: 70vw;
+      text-align: center;
+      font-size: 1.6em;
     }
     table {
+      width: 70vw;
       margin: 0 auto;
-      border-radius: 12px;
-      background: #232548d6;
-      box-shadow: 0 6px 12px #0d1b2a50;
+      font-size: 1.5em;
       border-spacing: 16px;
-      font-size: 1.3em;
+      background: #232548e8;
+      border-radius: 24px;
+      box-shadow: 0 9px 36px #1fa2ff55;
     }
     th {
       color: #fd79a8;
       font-weight: 700;
-      padding-bottom: 8px;
       border-bottom: 2px solid #fd79a8;
+      padding-bottom: 12px;
+      font-size: 1.1em;
     }
     td {
       color: #f5f6fa;
-      padding: 8px 22px;
-      border-radius: 6px;
+      padding: 14px 22px;
+      border-radius: 10px;
+      font-size: 1em;
     }
     tr:nth-child(even) td {
-      background: #353b48bb;
+      background: #353b48dd;
     }
-    #bgMusic {
-      display: none;
-    }
+    #bgMusic { display: none; }
     button {
       position: fixed;
       top: 18px;
@@ -83,12 +84,11 @@
       font-size: 2em;
       width: 44px;
       height: 44px;
-      box-shadow: 0 2px 7px #1fa2ff55;
+      box-shadow: 0 2px 12px #1fa2ff77;
       cursor: pointer;
+      z-index: 10;
     }
-    button:hover {
-      background: #20e6a3;
-    }
+    button:hover { background: #fed330; }
   </style>
 </head>
 <body>
@@ -96,13 +96,11 @@
   <div id="round"></div>
   <div id="countdown"></div>
   <div id="you"></div>
-  <div id="country">---</div>
   <div id="info">Waiting for players...</div>
   <div id="scores"></div>
   <div id="message"></div>
   <audio id="bgMusic" src="game-music.mp3" loop></audio>
-  <button onclick="document.getElementById('bgMusic').muted=!document.getElementById('bgMusic').muted"
-    style="position:fixed;top:18px;right:18px;z-index:10;">🔊</button>
+  <button onclick="document.getElementById('bgMusic').muted=!document.getElementById('bgMusic').muted">🔊</button>
 
   <script src="/socket.io/socket.io.js"></script>
   <script>
@@ -112,14 +110,13 @@
     const roundDiv = document.getElementById("round");
     const countdownDiv = document.getElementById("countdown");
     const youDiv = document.getElementById("you");
-    const countryDiv = document.getElementById("country");
     const infoDiv = document.getElementById("info");
     const scoresDiv = document.getElementById("scores");
     const messageDiv = document.getElementById("message");
     const bgMusic = document.getElementById("bgMusic");
 
     socket.on("youAre", ({ name }) => {
-      youDiv.textContent = `${name}: Press SPACE (computer) or TAP (phone) when you hear/see the target country.`;
+      youDiv.textContent = `${name}: Press SPACE (computer) or TAP (phone) when you hear the target country.`;
     });
 
     socket.on("countdown", ({ round }) => {
@@ -133,11 +130,12 @@
     });
 
     socket.on("announceTarget", ({ target, round }) => {
-      countryDiv.textContent = "TARGET COUNTRY: " + target;
-      infoDiv.textContent = "Get ready!";
+      infoDiv.textContent = "Target country will be spoken!";
       countdownDiv.textContent = "";
+      roundDiv.textContent = `Round ${round}`;
+      // SPEAK ONLY the country name
       if ('speechSynthesis' in window) {
-        let utter = new SpeechSynthesisUtterance("Target country is " + target);
+        let utter = new SpeechSynthesisUtterance(target);
         utter.lang = "en-US";
         window.speechSynthesis.cancel();
         window.speechSynthesis.speak(utter);
@@ -145,12 +143,9 @@
     });
 
     socket.on("newCountry", ({ country, target, ts }) => {
-      countryDiv.textContent = country;
-      countryDiv.style.transform = "scale(1.27)";
-      setTimeout(() => countryDiv.style.transform = "scale(1)", 150);
-      infoDiv.textContent = `Press SPACE or TAP when you see/hear: ${target}`;
+      infoDiv.textContent = ""; // Hide
       lastCountryTime = ts;
-
+      // SPEAK ONLY the country name, never display
       if ('speechSynthesis' in window) {
         let utter = new SpeechSynthesisUtterance(country);
         utter.lang = "en-US";
@@ -160,11 +155,11 @@
     });
 
     socket.on("gameState", ({ scores, message, round, target }) => {
-      let html = '<table><tr><th>Name</th><th>Score</th><th>Round Score</th><th>Reaction Time</th></tr>';
+      let html = '<table><tr><th>Name</th><th>Match Points</th><th>Round Points</th><th>Reaction Time</th></tr>';
       scores.forEach(s => {
         html += `<tr>
           <td>${s.name}</td>
-          <td>${s.score}</td>
+          <td>${s.matchScore || 0}</td>
           <td>${s.roundScore || 0}</td>
           <td>${s.reactionTime ? (s.reactionTime/1000).toFixed(3) + "s" : "-"}</td>
         </tr>`;
@@ -200,4 +195,4 @@
     });
   </script>
 </body>
-</html>
+  </html>
