@@ -12,6 +12,7 @@ const PORT = process.env.PORT || 3000;
 // --- GLOBAL GAME DATA SETUP (New) ---
 // 1. Get a global array of all country names for dynamic option generation
 const allCountryNames = flagData.map(q => q.correctAnswer); 
+const TOTAL_ROUNDS = 3; // Define total rounds as a constant
 
 // --- GAME STATE ---
 let waitingPlayer = null;
@@ -30,6 +31,7 @@ io.on('connection', (socket) => {
     // --- 1. MATCHMAKING ---
     if (waitingPlayer) {
         const matchId = socket.id + waitingPlayer.id;
+        // CHANGE: createNewMatch now generates and stores the random questions
         activeMatches[matchId] = createNewMatch(waitingPlayer.id, socket.id, matchId);
         
         io.to(waitingPlayer.id).emit('match_found', { opponentId: socket.id, matchId: matchId, isP1: true });
@@ -83,6 +85,20 @@ io.on('connection', (socket) => {
 
 // --- GAME HELPER FUNCTIONS ---
 
+/**
+ * Generates a list of questions for the match by shuffling the flag data.
+ * @returns {Array} An array of shuffled flag objects.
+ */
+function generateRandomMatchQuestions() {
+    // 1. Create a copy of the flag data and shuffle it
+    let shuffledData = [...flagData]; 
+    shuffleArray(shuffledData);
+    
+    // 2. Select the first TOTAL_ROUNDS questions to be used for this match
+    return shuffledData.slice(0, TOTAL_ROUNDS);
+}
+
+
 function createNewMatch(p1Id, p2Id, matchId) {
     return {
         matchId,
@@ -90,6 +106,8 @@ function createNewMatch(p1Id, p2Id, matchId) {
         p2: p2Id,
         currentRound: 0,
         scores: { [p1Id]: 0, [p2Id]: 0 },
+        // NEW: Generate and store the random questions for the match
+        matchQuestions: generateRandomMatchQuestions(), 
         currentQuestion: null,
         roundAnswers: { [p1Id]: null, [p2Id]: null }
     };
@@ -97,29 +115,30 @@ function createNewMatch(p1Id, p2Id, matchId) {
 
 function startGameRound(matchId, roundNumber) {
     const match = activeMatches[matchId];
-    if (!match || roundNumber > 3) return endGame(matchId); 
+    if (!match || roundNumber > TOTAL_ROUNDS) return endGame(matchId); 
 
     match.currentRound = roundNumber;
     
-    // Select the question based on the round number (using index roundNumber - 1)
-    // NOTE: For a real 200-question game, you'd use a random index, not roundNumber - 1
-    const question = flagData[roundNumber - 1]; 
-    if (!question) return endGame(matchId, 'No more questions available.');
+    // --- UPDATED LOGIC FOR RANDOMNESS ---
+    // Select the question from the pre-shuffled list for this match.
+    const question = match.matchQuestions[roundNumber - 1]; 
+    if (!question) return endGame(matchId, 'Question not found for this round.');
 
     // 1. Get the correct answer
     const correctAnswer = question.correctAnswer;
     
     // 2. Select three random, unique distractors
     let options = [correctAnswer];
+    // Filter out the current correct answer
     let distractors = allCountryNames.filter(name => name !== correctAnswer);
 
-    // Shuffle distractors list
+    // Shuffle distractors list (Ensures different wrong answers each time)
     shuffleArray(distractors); 
 
     // Add the first three shuffled distractors
     options.push(...distractors.slice(0, 3));
     
-    // 3. Shuffle the final options so the correct answer is not always first
+    // 3. Shuffle the final options so the correct answer is not always in the same position
     shuffleArray(options); 
     
     match.currentQuestion = question;
@@ -193,7 +212,7 @@ function calculateScores(matchId) {
         endGame(matchId);
     } else {
         const nextRound = match.currentRound + 1;
-        if (nextRound <= 3) {
+        if (nextRound <= TOTAL_ROUNDS) {
             setTimeout(() => startGameRound(matchId, nextRound), 3000);
         } else {
             endGame(matchId); 
@@ -232,7 +251,7 @@ function endGame(matchId, reason = null) {
     delete activeMatches[matchId];
 }
 
-// Global utility to shuffle arrays (for options)
+// Global utility to shuffle arrays (for questions and options)
 function shuffleArray(array) {
     for (let i = array.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
