@@ -10,7 +10,7 @@
             --secondary-color: #ff9800; /* Orange Accent */
             --success-color: #4caf50; /* Green */
             --error-color: #f44336; /* Red */
-            --bg-color: #e8eaf6; /* Light Purple/Blue Background */
+            --bg-color: #e8eaf6; /* Light Purple/Blue Background (used for contrast elements) */
             --text-color: #333;
             --bg-gradient: linear-gradient(to bottom, #d2e3f4, #f8f9fa); /* Light Blue to White */
         }
@@ -18,7 +18,7 @@
         body { 
             font-family: 'Arial', sans-serif; 
             text-align: center; 
-            background: var(--bg-gradient);
+            background: var(--bg-gradient); /* Single background for the entire page */
             margin: 0;
             padding: 0;
             display: flex;
@@ -31,25 +31,28 @@
         }
         
         #game-container { 
-            /* NEW MARGINS */
-            width: 60%; /* 100% width - 20% left margin - 20% right margin */
-            height: 60vh; /* 100vh height - 20% top margin - 20% bottom margin */
-            max-width: 800px;
+            /* === MARGINS: 20% V & H === */
+            /* The 20% margin means the container itself occupies 60% of the viewport (100% - 20% - 20%) */
+            width: 60%; 
+            height: 60vh;
             
-            /* Center the content area */
-            margin: 20vh 20% 0 20%; 
-
+            /* Calculated margin to center the 60% width/height content area */
+            margin: 20vh 20%; 
+            
             padding: 20px; 
-            background-color: white; /* Changed back to white for visibility within margins */
-            box-shadow: 0 8px 16px rgba(0,0,0,0.2); /* Added a box shadow for definition */
+            background-color: transparent; /* FIX: Use the single body background */
+            box-shadow: 0 8px 16px rgba(0,0,0,0.2); 
             
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: space-between; 
             
-            /* Ensure content fits within the 60vh height */
             box-sizing: border-box; 
+            
+            /* Add a white panel for content visibility over the background */
+            background-color: rgba(255, 255, 255, 0.9);
+            border-radius: 12px;
         }
 
         /* === 2. HEADER & SCOREBOARD === */
@@ -154,19 +157,27 @@
 
         /* Media query for smaller screens: reset margins for mobile view */
         @media (max-width: 768px) {
+            body {
+                font-size: 16px; /* Adjust base font size back for smaller screens */
+            }
             #game-container { 
                 /* Reset for small screens to fill the width */
                 width: 90%; 
-                margin: 5vh 5% 0 5%; /* Smaller vertical/horizontal margins for mobile */
+                margin: 5vh 5%; /* Smaller vertical/horizontal margins for mobile */
                 height: 90vh;
             }
             .option-button {
                 width: calc(100% - 16px);
+                font-size: 1.1em;
+            }
+            .score-board { 
+                font-size: 1.3em;
             }
         }
     </style>
 </head>
 <body>
+
 <div id="game-container">
     <h1>🌍 Flag Quiz: Fast Lane</h1>
 
