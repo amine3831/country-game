@@ -1,165 +1,209 @@
+// Server Dependencies
 const express = require('express');
-const http = require('http');
-const { Server } = require('socket.io');
 const app = express();
+const http = require('http');
 const server = http.createServer(app);
+const { Server } = require('socket.io');
 const io = new Server(server);
+const flagData = require('./flag_data.json'); // Your question bank
 
 const PORT = process.env.PORT || 3000;
 
-// Example flag data: array of {country, flagURL}
-const FLAGS = [
-  { country: "France", flag: "https://flagcdn.com/fr.svg" },
-  { country: "Brazil", flag: "https://flagcdn.com/br.svg" },
-  { country: "Japan", flag: "https://flagcdn.com/jp.svg" },
-  { country: "Kenya", flag: "https://flagcdn.com/ke.svg" }
-];
+// --- GAME STATE ---
+let waitingPlayer = null;
+let activeMatches = {}; // Stores { matchId: { p1: socketId, p2: socketId, currentRound: 1, scores: { p1: 0, p2: 0 }, ... } }
 
-let rooms = {};
+// Serve static files (index.html)
+app.get('/', (req, res) => {
+  res.sendFile(__dirname + '/index.html');
+});
 
-function getRandomFlag() {
-  return FLAGS[Math.floor(Math.random() * FLAGS.length)];
-}
+// --- CORE GAME LOGIC ---
 
 io.on('connection', (socket) => {
-  console.log(`User connected: ${socket.id}`);
+    console.log(`Player connected: ${socket.id}`);
 
-  socket.on('join', (roomId) => {
-    socket.join(roomId);
-    if (!rooms[roomId]) {
-      rooms[roomId] = {
-        players: [],
-        scores: [0, 0],
-        round: 1,
-        currentFlag: null,
-        answering: false
-      };
-    }
-    const room = rooms[roomId];
-    if (room.players.length < 2 && !room.players.includes(socket.id)) {
-      room.players.push(socket.id);
-    }
-    io.to(roomId).emit('playerCount', room.players.length);
-
-    if (room.players.length === 2 && !room.answering) {
-      startRound(roomId);
-    }
-  });
-
-  socket.on('answer', ({ roomId, answer }) => {
-    const room = rooms[roomId];
-    if (!room || !room.answering) return;
-    if (!room.players.includes(socket.id)) return;
-
-    if (room.firstAnswered) return; // Already answered this round
-
-    room.firstAnswered = socket.id;
-
-    const correctCountry = room.currentFlag.country.toLowerCase();
-    const givenAnswer = answer.trim().toLowerCase();
-
-    if (givenAnswer === correctCountry) {
-      // Correct answer - player wins point
-      updateScore(room, socket.id, true);
+    // --- 1. MATCHMAKING ---
+    if (waitingPlayer) {
+        // Start Game
+        const matchId = socket.id + waitingPlayer.id;
+        activeMatches[matchId] = createNewMatch(waitingPlayer.id, socket.id, matchId);
+        
+        // Notify both players
+        io.to(waitingPlayer.id).emit('match_found', { opponentId: socket.id, matchId: matchId, isP1: true });
+        socket.emit('match_found', { opponentId: waitingPlayer.id, matchId: matchId, isP1: false });
+        
+        startGameRound(matchId, 1);
+        waitingPlayer = null;
     } else {
-      // Wrong answer - point to opponent
-      updateScore(room, socket.id, false);
+        // Wait for opponent
+        waitingPlayer = socket;
+        socket.emit('waiting_for_opponent');
     }
-    room.answering = false;
-    io.to(roomId).emit('roundResult', {
-      winnerId: room.winnerId,
-      correctCountry: room.currentFlag.country,
-      scores: room.scores,
-      round: room.round
+
+    // --- 2. RECEIVE ANSWER ---
+    socket.on('submit_answer', (data) => {
+        const match = activeMatches[data.matchId];
+        if (!match) return; // Match doesn't exist
+
+        const isP1 = match.p1 === socket.id;
+        const playerKey = isP1 ? 'p1' : 'p2';
+        
+        // Only allow answer if player hasn't answered yet
+        if (!match.roundAnswers[playerKey]) {
+            match.roundAnswers[playerKey] = {
+                answer: data.answer,
+                time: Date.now()
+            };
+            
+            // If both players have answered, calculate scores
+            if (match.roundAnswers.p1 && match.roundAnswers.p2) {
+                calculateScores(match.matchId);
+            }
+        }
     });
 
-    if (checkGameOver(room)) {
-      io.to(roomId).emit('gameOver', { scores: room.scores });
+    // --- 3. DISCONNECT ---
+    socket.on('disconnect', () => {
+        // Basic match cleanup
+        for (const id in activeMatches) {
+            const match = activeMatches[id];
+            if (match.p1 === socket.id || match.p2 === socket.id) {
+                // Tell opponent the game is over
+                const opponentId = match.p1 === socket.id ? match.p2 : match.p1;
+                io.to(opponentId).emit('opponent_disconnected', 'Your opponent disconnected. You win!');
+                delete activeMatches[id];
+                break;
+            }
+        }
+        if (waitingPlayer && waitingPlayer.id === socket.id) {
+            waitingPlayer = null;
+        }
+        console.log(`Player disconnected: ${socket.id}`);
+    });
+});
+
+
+// --- GAME HELPER FUNCTIONS ---
+
+function createNewMatch(p1Id, p2Id, matchId) {
+    return {
+        matchId,
+        p1: p1Id,
+        p2: p2Id,
+        currentRound: 0,
+        scores: { [p1Id]: 0, [p2Id]: 0 },
+        currentQuestion: null,
+        roundAnswers: { p1: null, p2: null }
+    };
+}
+
+function startGameRound(matchId, roundNumber) {
+    const match = activeMatches[matchId];
+    if (!match || roundNumber > 3) return endGame(matchId);
+
+    match.currentRound = roundNumber;
+    
+    // Pick a question (simplified: based on round number)
+    const question = flagData[roundNumber - 1]; 
+    match.currentQuestion = question;
+    match.roundAnswers = { p1: null, p2: null }; // Reset answers
+
+    // Broadcast the new question to both players
+    const questionData = {
+        questionId: question.id,
+        image: question.image,
+        options: question.options,
+        round: roundNumber
+    };
+    io.to(match.p1).emit('new_round', questionData);
+    io.to(match.p2).emit('new_round', questionData);
+}
+
+function calculateScores(matchId) {
+    const match = activeMatches[matchId];
+    if (!match) return;
+
+    const q = match.currentQuestion;
+    const ansP1 = match.roundAnswers.p1;
+    const ansP2 = match.roundAnswers.p2;
+
+    let roundWinner = null;
+    let p1Correct = (ansP1 && ansP1.answer === q.correctAnswer);
+    let p2Correct = (ansP2 && ansP2.answer === q.correctAnswer);
+    
+    // 1. Determine the winner for the single point (Correct AND Fastest)
+    if (p1Correct && p2Correct) {
+        // Both correct, point goes to the fastest
+        roundWinner = (ansP1.time < ansP2.time) ? match.p1 : match.p2;
+    } else if (p1Correct) {
+        roundWinner = match.p1; // Only P1 correct
+    } else if (p2Correct) {
+        roundWinner = match.p2; // Only P2 correct
+    }
+    
+    // Update scores
+    if (roundWinner) {
+        match.scores[roundWinner]++;
+    }
+
+    // Broadcast results
+    const results = {
+        p1Score: match.scores[match.p1],
+        p2Score: match.scores[match.p2],
+        winnerId: roundWinner,
+        correctAnswer: q.correctAnswer
+    };
+    io.to(match.p1).emit('round_results', results);
+    io.to(match.p2).emit('round_results', results);
+    
+    // --- CHECK FOR EARLY TERMINATION ---
+    const scoreP1 = match.scores[match.p1];
+    const scoreP2 = match.scores[match.p2];
+    const scoreDiff = Math.abs(scoreP1 - scoreP2);
+
+    if (match.currentRound === 2 && scoreDiff >= 2) {
+        // Game Over - Mercy Rule (e.g., 2-0 score)
+        endGame(matchId);
     } else {
-      setTimeout(() => startRound(roomId), 3000);
+        // Start next round after a short delay for results screen
+        setTimeout(() => startGameRound(matchId, match.currentRound + 1), 3000);
     }
-  });
+}
 
-  socket.on('disconnect', () => {
-    for (const roomId in rooms) {
-      const room = rooms[roomId];
-      room.players = room.players.filter(id => id !== socket.id);
-      if (room.players.length === 0) {
-        delete rooms[roomId];
-      } else {
-        io.to(roomId).emit('playerCount', room.players.length);
-      }
+function endGame(matchId) {
+    const match = activeMatches[matchId];
+    if (!match) return;
+
+    const scoreP1 = match.scores[match.p1];
+    const scoreP2 = match.scores[match.p2];
+    let finalResult = 'Draw';
+    let winnerId = null;
+
+    if (scoreP1 > scoreP2) {
+        finalResult = 'Player 1 Wins';
+        winnerId = match.p1;
+    } else if (scoreP2 > scoreP1) {
+        finalResult = 'Player 2 Wins';
+        winnerId = match.p2;
     }
-    console.log(`User disconnected: ${socket.id}`);
-  });
-});
 
-function startRound(roomId) {
-  const room = rooms[roomId];
-  if (!room) return;
-
-  room.currentFlag = getRandomFlag();
-  room.round += room.round <= 3 || room.scores[0] === room.scores[1] ? 1 : 0;
-  room.firstAnswered = null;
-  room.answering = true;
-  room.winnerId = null;
-
-  io.to(roomId).emit('newRound', {
-    flagURL: room.currentFlag.flag,
-    round: room.round,
-    scores: room.scores,
-  });
-
-  // 10 second timeout for round
-  setTimeout(() => {
-    if (room.answering) {
-      // Timeout no answer: 0 points each
-      room.answering = false;
-      io.to(roomId).emit('roundResult', {
-        winnerId: null,
-        correctCountry: room.currentFlag.country,
-        scores: room.scores,
-        round: room.round
-      });
-      if (checkTimeoutRound(room)) {
-        startRound(roomId);
-      } else {
-        io.to(roomId).emit('gameOver', { scores: room.scores });
-      }
-    }
-  }, 10000);
+    const finalData = {
+        p1Score: scoreP1,
+        p2Score: scoreP2,
+        result: finalResult,
+        winner: winnerId
+    };
+    
+    io.to(match.p1).emit('game_over', finalData);
+    io.to(match.p2).emit('game_over', finalData);
+    
+    delete activeMatches[matchId];
 }
 
-function updateScore(room, answeringPlayerId, isCorrect) {
-  const idx = room.players.indexOf(answeringPlayerId);
-  if (isCorrect) {
-    room.scores[idx]++;
-    room.winnerId = answeringPlayerId;
-  } else {
-    const otherIdx = idx === 0 ? 1 : 0;
-    room.scores[otherIdx]++;
-    room.winnerId = room.players[otherIdx];
-  }
-}
 
-function checkGameOver(room) {
-  // Game over if 2-0 or if 3 rounds played and no tie
-  if (room.scores[0] === 2 || room.scores[1] === 2) return true;
-  if (room.round === 3 && room.scores[0] !== room.scores[1]) return true;
-  return false;
-}
-
-function checkTimeoutRound(room) {
-  // If round 3 timeout and tied scores -> round 4 sudden death
-  if (room.round === 3 && room.scores[0] === room.scores[1]) {
-    room.round = 4;
-    return true;
-  }
-  return false;
-}
-
-app.use(express.static('public'));
-
+// Start the server
 server.listen(PORT, () => {
-  console.log(`Server listening on port ${PORT}`);
+  console.log(`Server running at http://localhost:${PORT}/`);
 });
+              
