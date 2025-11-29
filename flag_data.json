@@ -2,19 +2,22 @@
   {
     "id": 1,
     "image": "https://upload.wikimedia.org/wikipedia/en/thumb/0/03/Flag_of_Italy.svg/200px-Flag_of_Italy.svg.png",
-    "correctAnswer": "Italy",
-    "options": ["France", "Germany", "Italy", "Spain"]
+    "correctAnswer": "Italy"
   },
   {
     "id": 2,
     "image": "https://upload.wikimedia.org/wikipedia/en/thumb/9/9e/Flag_of_Japan.svg/200px-Flag_of_Japan.svg.png",
-    "correctAnswer": "Japan",
-    "options": ["China", "Japan", "Korea", "Vietnam"]
+    "correctAnswer": "Japan"
   },
   {
     "id": 3,
     "image": "https://upload.wikimedia.org/wikipedia/en/thumb/b/ba/Flag_of_Germany.svg/200px-Flag_of_Germany.svg.png",
-    "correctAnswer": "Germany",
-    "options": ["France", "Germany", "Belgium", "Austria"]
+    "correctAnswer": "Germany"
   }
+  // YOU MUST ADD ALL ~200 COUNTRIES HERE using the format:
+  // {
+  //   "id": 4,
+  //   "image": "URL_of_your_flag_image",
+  //   "correctAnswer": "Country Name"
+  // }
 ]
