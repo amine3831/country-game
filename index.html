@@ -2,19 +2,81 @@
 <html>
 <head>
     <title>Flag Quiz Online</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
-        /* Basic CSS for display */
-        body { font-family: sans-serif; text-align: center; }
-        #game-container { max-width: 600px; margin: 50px auto; border: 1px solid #ccc; padding: 20px; }
-        .flag-image { width: 100%; height: auto; border: 1px solid #000; margin-bottom: 20px; }
-        .option-button { padding: 10px 20px; margin: 5px; cursor: pointer; }
-        .score-board { display: flex; justify-content: space-around; font-size: 1.2em; margin-bottom: 20px; }
+        /* Basic CSS for display and responsiveness */
+        body { 
+            font-family: sans-serif; 
+            text-align: center; 
+            background-color: #f4f4f9;
+            margin: 0;
+            padding: 20px;
+        }
+        #game-container { 
+            max-width: 600px; 
+            margin: 20px auto; 
+            border: 1px solid #ddd; 
+            padding: 20px; 
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        .flag-image { 
+            width: 80%; /* Adjusted for better mobile view */
+            height: auto; 
+            border: 1px solid #000; 
+            margin-bottom: 20px; 
+            max-width: 300px; 
+        }
+        .option-button { 
+            padding: 10px 20px; 
+            margin: 5px; 
+            cursor: pointer; 
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            font-size: 1em;
+            transition: background-color 0.3s;
+            width: calc(50% - 10px); /* Two columns layout */
+            box-sizing: border-box;
+        }
+        .option-button:hover:not(:disabled) {
+            background-color: #45a049;
+        }
+        .option-button:disabled {
+            background-color: #ccc;
+            cursor: default;
+        }
+        #options-container {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        .score-board { 
+            display: flex; 
+            justify-content: space-around; 
+            font-size: 1.2em; 
+            margin-bottom: 20px; 
+            padding: 10px;
+            border-bottom: 2px solid #eee;
+        }
+        #status {
+            font-size: 1.1em;
+            color: #333;
+            margin-bottom: 15px;
+        }
+        #result-message {
+            padding: 10px;
+            margin-top: 15px;
+            border-radius: 4px;
+        }
     </style>
 </head>
 <body>
 
 <div id="game-container">
-    <h1>Online Flag Quiz</h1>
+    <h1>🌍 Online Flag Quiz</h1>
     <div id="status">Connecting...</div>
 
     <div class="score-board">
@@ -23,11 +85,11 @@
     </div>
 
     <div id="game-area" style="display: none;">
-        <h2 id="round-display">Round 1</h2>
+        <h2 id="round-display">Round X</h2>
         <img id="current-flag" class="flag-image" src="" alt="Flag to guess">
         <div id="options-container">
             </div>
-        <p id="result-message" style="font-weight: bold;"></p>
+        <p id="result-message"></p>
     </div>
 </div>
 
@@ -36,9 +98,10 @@
 <script>
     const socket = io();
     let currentMatchId = null;
-    let isP1 = false;
+    let isP1 = false; // Tracks if this client is Player 1 in the match
     let isAnswered = false;
 
+    // Element references
     const statusEl = document.getElementById('status');
     const gameAreaEl = document.getElementById('game-area');
     const roundDisplayEl = document.getElementById('round-display');
@@ -48,14 +111,14 @@
     const playerScoreEl = document.getElementById('player-score');
     const opponentScoreEl = document.getElementById('opponent-score');
 
-    // --- 1. SOCKET LISTENERS ---
+    // --- SOCKET LISTENERS (Receiving data from server.js) ---
 
     socket.on('waiting_for_opponent', () => {
-        statusEl.textContent = 'Waiting for an opponent to join...';
+        statusEl.textContent = '⏳ Waiting for an opponent to join...';
     });
 
     socket.on('match_found', (data) => {
-        statusEl.textContent = `Match Found! Opponent ID: ${data.opponentId}`;
+        statusEl.textContent = `🤝 Match Found! Getting ready...`;
         currentMatchId = data.matchId;
         isP1 = data.isP1;
         gameAreaEl.style.display = 'block';
@@ -63,17 +126,18 @@
 
     socket.on('new_round', (data) => {
         isAnswered = false;
-        roundDisplayEl.textContent = `Round ${data.round}`;
+        roundDisplayEl.textContent = `▶️ Round ${data.round}`;
+        // The server provides the image URL from flag_data.json
         flagImageEl.src = data.image; 
         resultMessageEl.textContent = '';
-        optionsContainerEl.innerHTML = '';
+        optionsContainerEl.innerHTML = ''; // Clear old buttons
         
-        // Create answer buttons
+        // Generate answer buttons
         data.options.forEach(option => {
             const button = document.createElement('button');
             button.className = 'option-button';
             button.textContent = option;
-            button.onclick = () => submitAnswer(option);
+            button.onclick = () => submitAnswer(option, button);
             optionsContainerEl.appendChild(button);
         });
         
@@ -81,7 +145,7 @@
     });
 
     socket.on('round_results', (data) => {
-        // Update scores
+        // Update scores based on which player this client is
         const myScore = isP1 ? data.p1Score : data.p2Score;
         const oppScore = isP1 ? data.p2Score : data.p1Score;
         
@@ -89,13 +153,21 @@
         opponentScoreEl.textContent = `Opponent Score: ${oppScore}`;
         
         // Display result message
-        resultMessageEl.textContent = `Correct Answer was: ${data.correctAnswer}.`;
+        resultMessageEl.textContent = `Correct Answer: ${data.correctAnswer}. `;
+        
+        // Highlight the correct button in green
+        Array.from(optionsContainerEl.children).forEach(btn => {
+            if (btn.textContent === data.correctAnswer) {
+                btn.style.backgroundColor = 'green';
+            }
+        });
+
         if (data.winnerId === socket.id) {
-            resultMessageEl.textContent += ' You won this round!';
+            resultMessageEl.textContent += ' 🎉 You won this round!';
         } else if (data.winnerId) {
-            resultMessageEl.textContent += ' Opponent won this round.';
+            resultMessageEl.textContent += ' 😔 Opponent won this round.';
         } else {
-            resultMessageEl.textContent += ' Neither player scored.';
+            resultMessageEl.textContent += ' 👔 Neither player scored.';
         }
         
         enableButtons(false);
@@ -103,35 +175,33 @@
 
     socket.on('game_over', (data) => {
         gameAreaEl.style.display = 'none';
-        statusEl.textContent = `Game Over! Final Score: ${data.p1Score} - ${data.p2Score}.`;
+        
+        let finalMessage = `Game Over! Final Score: ${data.p1Score} - ${data.p2Score}. `;
         if (data.winner === socket.id) {
-            statusEl.textContent += ' YOU ARE THE CHAMPION!';
+            finalMessage += '🏆 YOU ARE THE CHAMPION!';
         } else if (data.winner) {
-            statusEl.textContent += ' You lost. Better luck next time.';
+            finalMessage += ' You lost. Better luck next time.';
         } else {
-            statusEl.textContent += ' It\'s a Draw!';
+            finalMessage += ' It\'s a Draw!';
         }
+        statusEl.textContent = finalMessage;
     });
 
     socket.on('opponent_disconnected', (message) => {
         gameAreaEl.style.display = 'none';
-        statusEl.textContent = message;
+        statusEl.textContent = `🛑 ${message}`;
     });
 
-    // --- 2. CLIENT ACTION ---
+    // --- CLIENT ACTIONS (Sending data to server.js) ---
 
-    function submitAnswer(answer) {
+    function submitAnswer(answer, buttonPressed) {
         if (isAnswered) return;
         isAnswered = true;
         enableButtons(false); // Lock the UI after submitting
 
-        // Visually show which button was pressed
-        Array.from(optionsContainerEl.children).forEach(btn => {
-            if (btn.textContent === answer) {
-                btn.style.backgroundColor = '#ADD8E6'; // Light blue highlight
-            }
-        });
-
+        // Visually highlight the user's chosen answer
+        buttonPressed.style.backgroundColor = '#ADD8E6'; // Light blue highlight
+        
         // Send answer to the server
         socket.emit('submit_answer', {
             matchId: currentMatchId,
@@ -142,11 +212,11 @@
     function enableButtons(enabled) {
         Array.from(optionsContainerEl.children).forEach(btn => {
             btn.disabled = !enabled;
-            btn.style.backgroundColor = ''; // Reset background
+            if (enabled) {
+                btn.style.backgroundColor = '#4CAF50'; // Reset color
+            }
         });
     }
-
 </script>
 </body>
-  </html>
-  
+</html>
