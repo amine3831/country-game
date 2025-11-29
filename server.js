@@ -11,7 +11,7 @@ const PORT = process.env.PORT || 3000;
 
 // --- GAME STATE ---
 let waitingPlayer = null;
-let activeMatches = {}; // Stores { matchId: { p1: socketId, p2: socketId, currentRound: 1, scores: { p1: 0, p2: 0 }, ... } }
+let activeMatches = {}; 
 
 // Serve static files (index.html)
 app.get('/', (req, res) => {
@@ -44,16 +44,15 @@ io.on('connection', (socket) => {
     // --- 2. RECEIVE ANSWER ---
     socket.on('submit_answer', (data) => {
         const match = activeMatches[data.matchId];
-        if (!match) return; // Match doesn't exist
+        if (!match) return; 
 
-        const isP1 = match.p1 === socket.id;
-        const playerKey = isP1 ? 'p1' : 'p2';
+        const playerKey = (match.p1 === socket.id) ? 'p1' : 'p2';
         
         // Only allow answer if player hasn't answered yet
         if (!match.roundAnswers[playerKey]) {
             match.roundAnswers[playerKey] = {
                 answer: data.answer,
-                time: Date.now()
+                time: Date.now() // Server-side timestamp for accuracy
             };
             
             // If both players have answered, calculate scores
@@ -69,7 +68,6 @@ io.on('connection', (socket) => {
         for (const id in activeMatches) {
             const match = activeMatches[id];
             if (match.p1 === socket.id || match.p2 === socket.id) {
-                // Tell opponent the game is over
                 const opponentId = match.p1 === socket.id ? match.p2 : match.p1;
                 io.to(opponentId).emit('opponent_disconnected', 'Your opponent disconnected. You win!');
                 delete activeMatches[id];
@@ -94,18 +92,24 @@ function createNewMatch(p1Id, p2Id, matchId) {
         currentRound: 0,
         scores: { [p1Id]: 0, [p2Id]: 0 },
         currentQuestion: null,
-        roundAnswers: { p1: null, p2: null }
+        roundAnswers: { p1: null, p2: null },
+        roundStartTime: null // Added for time calculation
     };
 }
 
 function startGameRound(matchId, roundNumber) {
     const match = activeMatches[matchId];
-    if (!match || roundNumber > 3) return endGame(matchId);
+    if (!match) return; // Should not happen
 
     match.currentRound = roundNumber;
+    match.roundStartTime = Date.now(); // Record start time
     
-    // Pick a question (simplified: based on round number)
-    const question = flagData[roundNumber - 1]; 
+    // Pick a question (simplified: based on round number, or random for tiebreakers)
+    const questionIndex = (roundNumber <= 3) ? (roundNumber - 1) : Math.floor(Math.random() * flagData.length);
+    
+    // Ensure we have enough data (if not, use a random question)
+    const question = flagData[questionIndex] || flagData[Math.floor(Math.random() * flagData.length)];
+    
     match.currentQuestion = question;
     match.roundAnswers = { p1: null, p2: null }; // Reset answers
 
@@ -114,7 +118,8 @@ function startGameRound(matchId, roundNumber) {
         questionId: question.id,
         image: question.image,
         options: question.options,
-        round: roundNumber
+        round: roundNumber,
+        isTiebreaker: roundNumber >= 4
     };
     io.to(match.p1).emit('new_round', questionData);
     io.to(match.p2).emit('new_round', questionData);
@@ -147,25 +152,59 @@ function calculateScores(matchId) {
         match.scores[roundWinner]++;
     }
 
+    // Prepare time data for display
+    const p1AnswerTime = ansP1 ? ansP1.time : null;
+    const p2AnswerTime = ansP2 ? ansP2.time : null;
+
     // Broadcast results
     const results = {
         p1Score: match.scores[match.p1],
         p2Score: match.scores[match.p2],
         winnerId: roundWinner,
-        correctAnswer: q.correctAnswer
+        correctAnswer: q.correctAnswer,
+        timeP1: p1AnswerTime,
+        timeP2: p2AnswerTime,
+        roundStartTime: match.roundStartTime
     };
     io.to(match.p1).emit('round_results', results);
     io.to(match.p2).emit('round_results', results);
     
-    // --- CHECK FOR EARLY TERMINATION ---
+    // --- CHECK FOR TIEBREAKER END (Round 4 or higher) ---
+    if (match.currentRound >= 4) {
+        if (roundWinner) {
+            // Tiebreaker won (Sudden Death)
+            endGame(matchId);
+            return; 
+        } else {
+            // No point scored, continue to the next tiebreaker round
+            console.log('Tiebreaker round draw. Starting next sudden death round.');
+            setTimeout(() => startGameRound(matchId, match.currentRound + 1), 3000);
+            return; 
+        }
+    }
+
     const scoreP1 = match.scores[match.p1];
     const scoreP2 = match.scores[match.p2];
     const scoreDiff = Math.abs(scoreP1 - scoreP2);
-
+    
+    // Check 1: Early Termination (after Round 2)
     if (match.currentRound === 2 && scoreDiff >= 2) {
         // Game Over - Mercy Rule (e.g., 2-0 score)
         endGame(matchId);
-    } else {
+    } 
+    // Check 2: End of the primary 3 rounds
+    else if (match.currentRound === 3) {
+        if (scoreP1 === scoreP2) {
+            // It's a draw, start the tiebreaker (Round 4)
+            console.log(`Match ${matchId} tied at ${scoreP1}-${scoreP2}. Starting Tiebreaker.`);
+            setTimeout(() => startGameRound(matchId, match.currentRound + 1), 3000);
+        } else {
+            // Game Over - A winner was decided (e.g., 2-1 or 3-0)
+            endGame(matchId);
+        }
+    } 
+    // Check 3: Standard progression 
+    else {
         // Start next round after a short delay for results screen
         setTimeout(() => startGameRound(matchId, match.currentRound + 1), 3000);
     }
@@ -206,4 +245,3 @@ function endGame(matchId) {
 server.listen(PORT, () => {
   console.log(`Server running at http://localhost:${PORT}/`);
 });
-              
