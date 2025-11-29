@@ -18,33 +18,48 @@
         body { 
             font-family: 'Arial', sans-serif; 
             text-align: center; 
-            background: var(--bg-gradient); /* Use the gradient background */
+            background: var(--bg-gradient);
             margin: 0;
             padding: 0;
             display: flex;
             justify-content: center;
             align-items: center;
             min-height: 100vh;
-            height: 100vh; /* Crucial: Force full viewport height */
+            height: 100vh;
             color: var(--text-color);
+            font-size: 18px; /* BASE FONT SIZE INCREASED */
         }
+        
         #game-container { 
-            width: 100%;
-            height: 100vh; /* Fill entire viewport height */
+            /* NEW MARGINS */
+            width: 60%; /* 100% width - 20% left margin - 20% right margin */
+            height: 60vh; /* 100vh height - 20% top margin - 20% bottom margin */
             max-width: 800px;
+            
+            /* Center the content area */
+            margin: 20vh 20% 0 20%; 
+
             padding: 20px; 
-            background-color: transparent; /* See body background */
-            box-shadow: none; /* Removed harsh shadow */
+            background-color: white; /* Changed back to white for visibility within margins */
+            box-shadow: 0 8px 16px rgba(0,0,0,0.2); /* Added a box shadow for definition */
+            
             display: flex;
             flex-direction: column;
             align-items: center;
-            justify-content: space-between; /* Space out content vertically */
+            justify-content: space-between; 
+            
+            /* Ensure content fits within the 60vh height */
+            box-sizing: border-box; 
         }
 
         /* === 2. HEADER & SCOREBOARD === */
         h1 {
             color: var(--primary-color);
             margin-top: 0;
+            font-size: 2.2em; /* Bigger Title */
+        }
+        h2 {
+            font-size: 1.5em; /* Bigger Round Display */
         }
         .score-board { 
             display: flex; 
@@ -54,7 +69,7 @@
             padding: 10px 0;
             border-bottom: 3px solid var(--secondary-color);
             font-weight: bold;
-            font-size: 1.3em; 
+            font-size: 1.5em; /* Bigger Scoreboard text */
         }
         #player-score { color: var(--primary-color); }
         #opponent-score { color: #6c757d; }
@@ -65,7 +80,7 @@
             display: none; 
             flex-direction: column;
             align-items: center;
-            justify-content: space-around; /* Evenly space elements within game-area */
+            justify-content: space-around;
             width: 95%;
             padding-bottom: 30px; 
         }
@@ -86,14 +101,14 @@
             max-width: 500px;
         }
         .option-button { 
-            padding: 15px 10px; 
+            padding: 18px 12px; /* Increased padding */
             margin: 8px; 
             cursor: pointer; 
             background-color: var(--primary-color);
             color: white;
             border: none;
             border-radius: 8px;
-            font-size: 1.1em;
+            font-size: 1.2em; /* Bigger button text */
             transition: background-color 0.3s, transform 0.1s;
             width: calc(50% - 16px);
             box-shadow: 0 3px var(--primary-color);
@@ -127,16 +142,24 @@
             font-weight: bold;
             border-radius: 4px;
             margin-top: 15px;
+            font-size: 1.1em; /* Bigger status text */
         }
         #time-display {
             font-style: italic;
             margin-top: 15px;
+            font-size: 1.1em; /* Bigger time display text */
         }
         #player-time { color: var(--primary-color); }
         #opponent-time { color: var(--error-color); }
 
-        /* Media query for smaller screens */
-        @media (max-width: 600px) {
+        /* Media query for smaller screens: reset margins for mobile view */
+        @media (max-width: 768px) {
+            #game-container { 
+                /* Reset for small screens to fill the width */
+                width: 90%; 
+                margin: 5vh 5% 0 5%; /* Smaller vertical/horizontal margins for mobile */
+                height: 90vh;
+            }
             .option-button {
                 width: calc(100% - 16px);
             }
@@ -144,7 +167,6 @@
     </style>
 </head>
 <body>
-
 <div id="game-container">
     <h1>🌍 Flag Quiz: Fast Lane</h1>
 
@@ -188,7 +210,7 @@
     const playerScoreEl = document.getElementById('player-score');
     const opponentScoreEl = document.getElementById('opponent-score');
     
-    // NEW TIME REFERENCES
+    // TIME REFERENCES
     const playerTimeEl = document.getElementById('player-time');
     const opponentTimeEl = document.getElementById('opponent-time');
 
@@ -217,8 +239,8 @@
         roundDisplayEl.textContent = `▶️ Round ${data.round} of 3`;
         flagImageEl.src = data.image; 
         resultMessageEl.textContent = '';
-        playerTimeEl.textContent = ''; // Clear previous time
-        opponentTimeEl.textContent = ''; // Clear previous time
+        playerTimeEl.textContent = '';
+        opponentTimeEl.textContent = '';
         optionsContainerEl.innerHTML = ''; 
         statusEl.style.backgroundColor = 'transparent'; 
         statusEl.style.color = getCssVar('--text-color');
@@ -247,7 +269,6 @@
         const myTime = isP1 ? data.p1Time : data.p2Time;
         const oppTime = isP1 ? data.p2Time : data.p1Time;
 
-        // Use a placeholder if the player didn't answer in time (Infinity from server.js)
         playerTimeEl.textContent = myTime < Infinity ? `YOU: ${myTime.toFixed(2)}s` : 'YOU: Timed Out';
         opponentTimeEl.textContent = oppTime < Infinity ? `OPPONENT: ${oppTime.toFixed(2)}s` : 'OPPONENT: Timed Out';
 
@@ -316,10 +337,8 @@
         isAnswered = true;
         enableButtons(false); 
 
-        // Visually highlight the user's chosen answer
         buttonPressed.classList.add('selected');
 
-        // Send answer to the server
         socket.emit('submit_answer', {
             matchId: currentMatchId,
             answer: answer
