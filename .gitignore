@@ -1,0 +1,11 @@
+# Dependency folders
+node_modules/
+
+# Logs and debug files
+npm-debug.log*
+*.log
+.DS_Store
+
+# IDE and Editor files (common ones)
+.vscode/
+.idea/
