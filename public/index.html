@@ -1,198 +1,113 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <title>Country Reaction Game</title>
-  <style>
-    html, body {
-      height: 100%;
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
-    body {
-      min-height: 100vh;
-      width: 100vw;
-      min-width: 100vw;
-      min-height: 100vh;
-      overflow: hidden;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-      background: linear-gradient(135deg, #192b47 70%, #1fa2ff 100%);
-    }
-    h1 {
-      font-size: 3em;
-      letter-spacing: 3px;
-      color: #fed330;
-      text-shadow: 3px 4px 14px #1fa2ffaa;
-      margin-top: 0;
-      margin-bottom: 28px;
-    }
-    #info, #round, #countdown, #you, #message {
-      font-size: 2.1em;
-      font-weight: bold;
-      padding: 18px 10px;
-      text-align: center;
-    }
-    #info, #countdown, #message {
-      color: #fff;
-      text-shadow: 3px 2px 14px #45aaf2;
-    }
-    #scores {
-      margin-top: 44px;
-      min-width: 70vw;
-      width: 70vw;
-      text-align: center;
-      font-size: 1.6em;
-    }
-    table {
-      width: 70vw;
-      margin: 0 auto;
-      font-size: 1.5em;
-      border-spacing: 16px;
-      background: #232548e8;
-      border-radius: 24px;
-      box-shadow: 0 9px 36px #1fa2ff55;
-    }
-    th {
-      color: #fd79a8;
-      font-weight: 700;
-      border-bottom: 2px solid #fd79a8;
-      padding-bottom: 12px;
-      font-size: 1.1em;
-    }
-    td {
-      color: #f5f6fa;
-      padding: 14px 22px;
-      border-radius: 10px;
-      font-size: 1em;
-    }
-    tr:nth-child(even) td {
-      background: #353b48dd;
-    }
-    #bgMusic { display: none; }
-    button {
-      position: fixed;
-      top: 18px;
-      right: 18px;
-      background: #1fa2ff;
-      color: #fff;
-      border: none;
-      border-radius: 50%;
-      font-size: 2em;
-      width: 44px;
-      height: 44px;
-      box-shadow: 0 2px 12px #1fa2ff77;
-      cursor: pointer;
-      z-index: 10;
-    }
-    button:hover { background: #fed330; }
-  </style>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Flag Speed Duel</title>
+<style>
+  body { font-family: Arial, sans-serif; margin: 20px; text-align: center; }
+  #flag { width: 200px; height: auto; margin: 20px; }
+  #score { margin: 10px; font-size: 20px; }
+  #round { font-weight: bold; }
+  #answerInput { font-size: 18px; padding: 5px; width: 200px; }
+  #message { margin-top: 15px; height: 20px; }
+</style>
 </head>
 <body>
-  <h1>Country Reaction Game</h1>
-  <div id="round"></div>
-  <div id="countdown"></div>
-  <div id="you"></div>
-  <div id="info">Waiting for players...</div>
-  <div id="scores"></div>
-  <div id="message"></div>
-  <audio id="bgMusic" src="game-music.mp3" loop></audio>
-  <button onclick="document.getElementById('bgMusic').muted=!document.getElementById('bgMusic').muted">🔊</button>
 
-  <script src="/socket.io/socket.io.js"></script>
-  <script>
-    const socket = io();
-    let lastCountryTime = null;
+<h1>Flag Speed Duel</h1>
+<div id="round"></div>
+<img id="flag" src="" alt="Flag will show here" />
+<div>
+  <input id="answerInput" placeholder="Type country name" autocomplete="off" />
+  <button id="answerBtn">Answer</button>
+</div>
+<div id="message"></div>
+<div id="score">Player 1: 0 - Player 2: 0</div>
+<div id="status"></div>
 
-    const roundDiv = document.getElementById("round");
-    const countdownDiv = document.getElementById("countdown");
-    const youDiv = document.getElementById("you");
-    const infoDiv = document.getElementById("info");
-    const scoresDiv = document.getElementById("scores");
-    const messageDiv = document.getElementById("message");
-    const bgMusic = document.getElementById("bgMusic");
+<script src="/socket.io/socket.io.js"></script>
+<script>
+  const socket = io();
+  const urlParams = new URLSearchParams(window.location.search);
+  let roomId = urlParams.get('room') || 'defaultRoom';
 
-    socket.on("youAre", ({ name }) => {
-      youDiv.textContent = `${name}: Press SPACE (computer) or TAP (phone) when you hear the target country.`;
-    });
+  const flagImg = document.getElementById('flag');
+  const roundDiv = document.getElementById('round');
+  const messageDiv = document.getElementById('message');
+  const scoreDiv = document.getElementById('score');
+  const statusDiv = document.getElementById('status');
+  const answerInput = document.getElementById('answerInput');
+  const answerBtn = document.getElementById('answerBtn');
 
-    socket.on("countdown", ({ round }) => {
-      countdownDiv.textContent = "Get ready! Round " + round + " begins in...";
-      let count = 3;
-      let timer = setInterval(() => {
-        countdownDiv.textContent = count > 0 ? count : "";
-        if (count === 0) clearInterval(timer);
-        count--;
-      }, 1000);
-    });
+  let canAnswer = false;
 
-    socket.on("announceTarget", ({ target, round }) => {
-      infoDiv.textContent = "Target country will be spoken!";
-      countdownDiv.textContent = "";
-      roundDiv.textContent = `Round ${round}`;
-      // SPEAK ONLY the country name
-      if ('speechSynthesis' in window) {
-        let utter = new SpeechSynthesisUtterance(target);
-        utter.lang = "en-US";
-        window.speechSynthesis.cancel();
-        window.speechSynthesis.speak(utter);
-      }
-    });
+  socket.emit('join', roomId);
 
-    socket.on("newCountry", ({ country, target, ts }) => {
-      infoDiv.textContent = ""; // Hide
-      lastCountryTime = ts;
-      // SPEAK ONLY the country name, never display
-      if ('speechSynthesis' in window) {
-        let utter = new SpeechSynthesisUtterance(country);
-        utter.lang = "en-US";
-        window.speechSynthesis.cancel();
-        window.speechSynthesis.speak(utter);
-      }
-    });
-
-    socket.on("gameState", ({ scores, message, round, target }) => {
-      let html = '<table><tr><th>Name</th><th>Match Points</th><th>Round Points</th><th>Reaction Time</th></tr>';
-      scores.forEach(s => {
-        html += `<tr>
-          <td>${s.name}</td>
-          <td>${s.matchScore || 0}</td>
-          <td>${s.roundScore || 0}</td>
-          <td>${s.reactionTime ? (s.reactionTime/1000).toFixed(3) + "s" : "-"}</td>
-        </tr>`;
-      });
-      html += '</table>';
-      scoresDiv.innerHTML = html;
-      messageDiv.textContent = message || "";
-      roundDiv.textContent = `Round ${round || 1}`;
-    });
-
-    function sendReaction() {
-      if (!lastCountryTime) return;
-      const reactionTime = Date.now() - lastCountryTime;
-      socket.emit("keyPressed", { reactionTime });
+  socket.on('playerCount', (count) => {
+    if (count < 2) {
+      statusDiv.textContent = 'Waiting for second player...';
+      answerBtn.disabled = true;
+      canAnswer = false;
+    } else {
+      statusDiv.textContent = 'Both players connected! Get ready.';
+      answerBtn.disabled = false;
+      canAnswer = true;
     }
+  });
 
-    document.addEventListener("keydown", e => {
-      if (e.code === "Space" || e.key === " ") sendReaction();
-    });
-    document.addEventListener("touchstart", sendReaction);
-    document.addEventListener("click", sendReaction);
+  socket.on('newRound', ({ flagURL, round, scores }) => {
+    flagImg.src = flagURL;
+    roundDiv.textContent = `Round: ${round}`;
+    scoreDiv.textContent = `Player 1: ${scores[0]} - Player 2: ${scores[1]}`;
+    messageDiv.textContent = '';
+    answerInput.value = '';
+    answerInput.disabled = false;
+    answerBtn.disabled = false;
+    canAnswer = true;
+  });
 
-    window.addEventListener("DOMContentLoaded", function() {
-      function startMusic() {
-        if (bgMusic.paused) {
-          bgMusic.volume = 0.3;
-          bgMusic.play();
-        }
-      }
-      document.addEventListener("keydown", startMusic);
-      document.addEventListener("touchstart", startMusic);
-      document.addEventListener("click", startMusic);
-    });
-  </script>
+  socket.on('roundResult', ({ winnerId, correctCountry, scores, round }) => {
+    if (winnerId) {
+      messageDiv.textContent = `Correct answer: ${correctCountry}. Player ${winnerId === socket.id ? 'You' : (winnerId === null ? 'No one' : 'Opponent')} won this round!`;
+    } else {
+      messageDiv.textContent = `Timeout! No points awarded. Correct answer: ${correctCountry}.`;
+    }
+    scoreDiv.textContent = `Player 1: ${scores[0]} - Player 2: ${scores[1]}`;
+    answerInput.disabled = true;
+    answerBtn.disabled = true;
+    canAnswer = false;
+  });
+
+  socket.on('gameOver', ({ scores }) => {
+    if (scores[0] > scores[1]) {
+      statusDiv.textContent = "Game Over! Player 1 Wins!";
+    } else if (scores[1] > scores[0]) {
+      statusDiv.textContent = "Game Over! Player 2 Wins!";
+    } else {
+      statusDiv.textContent = "Game Over! It's a tie!";
+    }
+    answerInput.disabled = true;
+    answerBtn.disabled = true;
+    canAnswer = false;
+  });
+
+  answerBtn.addEventListener('click', () => {
+    if (!canAnswer) return;
+    const answer = answerInput.value.trim();
+    if (answer.length === 0) return;
+    socket.emit('answer', { roomId, answer });
+    answerInput.disabled = true;
+    answerBtn.disabled = true;
+    canAnswer = false;
+  });
+
+  answerInput.addEventListener('keyup', (e) => {
+    if (e.key === 'Enter') {
+      answerBtn.click();
+    }
+  });
+</script>
+
 </body>
-  </html>
+</html>
