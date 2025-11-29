@@ -10,7 +10,6 @@
             --secondary-color: #ff9800; /* Orange Accent */
             --success-color: #4caf50; /* Green */
             --error-color: #f44336; /* Red */
-            --bg-color: #e8eaf6; /* Light Purple/Blue Background (used for contrast elements) */
             --text-color: #333;
             --bg-gradient: linear-gradient(to bottom, #d2e3f4, #f8f9fa); /* Light Blue to White */
         }
@@ -40,7 +39,6 @@
             margin: 20vh 20%; 
             
             padding: 20px; 
-            background-color: transparent; /* FIX: Use the single body background */
             box-shadow: 0 8px 16px rgba(0,0,0,0.2); 
             
             display: flex;
@@ -50,7 +48,7 @@
             
             box-sizing: border-box; 
             
-            /* Add a white panel for content visibility over the background */
+            /* Use a semi-transparent white panel to make content readable over the background */
             background-color: rgba(255, 255, 255, 0.9);
             border-radius: 12px;
         }
@@ -158,12 +156,12 @@
         /* Media query for smaller screens: reset margins for mobile view */
         @media (max-width: 768px) {
             body {
-                font-size: 16px; /* Adjust base font size back for smaller screens */
+                font-size: 16px; 
             }
             #game-container { 
                 /* Reset for small screens to fill the width */
                 width: 90%; 
-                margin: 5vh 5%; /* Smaller vertical/horizontal margins for mobile */
+                margin: 5vh 5%; 
                 height: 90vh;
             }
             .option-button {
@@ -209,8 +207,7 @@
     let currentMatchId = null;
     let isP1 = false;
     let isAnswered = false;
-    let roundStartTime = 0; 
-
+    
     // Element references
     const statusEl = document.getElementById('status');
     const gameAreaEl = document.getElementById('game-area');
@@ -246,7 +243,6 @@
 
     socket.on('new_round', (data) => {
         isAnswered = false;
-        roundStartTime = Date.now(); 
         roundDisplayEl.textContent = `▶️ Round ${data.round} of 3`;
         flagImageEl.src = data.image; 
         resultMessageEl.textContent = '';
@@ -286,7 +282,7 @@
 
         // Display result message
         resultMessageEl.textContent = `Correct Answer: ${data.correctAnswer}. `;
-        resultMessageEl.style.backgroundColor = getCssVar('--bg-color'); 
+        resultMessageEl.style.backgroundColor = 'rgba(240, 240, 240, 0.5)'; 
 
         Array.from(optionsContainerEl.children).forEach(btn => {
             if (btn.textContent === data.correctAnswer) {
