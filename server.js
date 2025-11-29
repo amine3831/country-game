@@ -9,10 +9,12 @@ const flagData = require('./flag_data.json'); // Your question bank
 
 const PORT = process.env.PORT || 3000;
 
-// --- GLOBAL GAME DATA SETUP (New) ---
-// 1. Get a global array of all country names for dynamic option generation
+// --- GLOBAL GAME DATA SETUP ---
+// Get a global array of all country names for dynamic option generation
 const allCountryNames = flagData.map(q => q.correctAnswer); 
-const TOTAL_ROUNDS = 3; // Define total rounds as a constant
+// We select enough questions for all potential tiebreakers
+const MAX_MATCH_ROUNDS = flagData.length; 
+const INITIAL_ROUNDS = 3; // The base number of rounds before tie-break logic kicks in
 
 // --- GAME STATE ---
 let waitingPlayer = null;
@@ -31,7 +33,7 @@ io.on('connection', (socket) => {
     // --- 1. MATCHMAKING ---
     if (waitingPlayer) {
         const matchId = socket.id + waitingPlayer.id;
-        // CHANGE: createNewMatch now generates and stores the random questions
+        // Generate and store the unique random questions for this match
         activeMatches[matchId] = createNewMatch(waitingPlayer.id, socket.id, matchId);
         
         io.to(waitingPlayer.id).emit('match_found', { opponentId: socket.id, matchId: matchId, isP1: true });
@@ -54,7 +56,7 @@ io.on('connection', (socket) => {
         if (!match.roundAnswers[playerKey]) {
             match.roundAnswers[playerKey] = {
                 answer: data.answer,
-                time: Date.now() // Server timestamp
+                time: Date.now() 
             };
             
             if (match.roundAnswers[match.p1] && match.roundAnswers[match.p2]) {
@@ -86,16 +88,15 @@ io.on('connection', (socket) => {
 // --- GAME HELPER FUNCTIONS ---
 
 /**
- * Generates a list of questions for the match by shuffling the flag data.
+ * Generates a full list of questions for the match by shuffling the flag data.
  * @returns {Array} An array of shuffled flag objects.
  */
 function generateRandomMatchQuestions() {
-    // 1. Create a copy of the flag data and shuffle it
     let shuffledData = [...flagData]; 
     shuffleArray(shuffledData);
     
-    // 2. Select the first TOTAL_ROUNDS questions to be used for this match
-    return shuffledData.slice(0, TOTAL_ROUNDS);
+    // Select enough questions for all potential tiebreakers
+    return shuffledData.slice(0, MAX_MATCH_ROUNDS); 
 }
 
 
@@ -106,7 +107,6 @@ function createNewMatch(p1Id, p2Id, matchId) {
         p2: p2Id,
         currentRound: 0,
         scores: { [p1Id]: 0, [p2Id]: 0 },
-        // NEW: Generate and store the random questions for the match
         matchQuestions: generateRandomMatchQuestions(), 
         currentQuestion: null,
         roundAnswers: { [p1Id]: null, [p2Id]: null }
@@ -115,11 +115,11 @@ function createNewMatch(p1Id, p2Id, matchId) {
 
 function startGameRound(matchId, roundNumber) {
     const match = activeMatches[matchId];
-    if (!match || roundNumber > TOTAL_ROUNDS) return endGame(matchId); 
+    // Check if we ran out of questions
+    if (!match || roundNumber > match.matchQuestions.length) return endGame(matchId, 'Draw (Questions Exhausted)'); 
 
     match.currentRound = roundNumber;
     
-    // --- UPDATED LOGIC FOR RANDOMNESS ---
     // Select the question from the pre-shuffled list for this match.
     const question = match.matchQuestions[roundNumber - 1]; 
     if (!question) return endGame(matchId, 'Question not found for this round.');
@@ -147,7 +147,7 @@ function startGameRound(matchId, roundNumber) {
 
     // Broadcast the new question data
     const questionData = {
-        questionId: question.id,
+        // questionId: question.id, // Removed question.id as it may not exist in flag_data.json
         image: question.image,
         options: options, // Send the dynamically generated options
         round: roundNumber
@@ -176,6 +176,7 @@ function calculateScores(matchId) {
     
     // --- 1. SINGLE POINT PER ROUND LOGIC ---
     if (p1Correct && p2Correct) {
+        // Tie-break on speed
         roundWinner = (p1Time < p2Time) ? match.p1 : match.p2;
     } else if (p1Correct) {
         roundWinner = match.p1; 
@@ -197,26 +198,34 @@ function calculateScores(matchId) {
         p2Score: match.scores[match.p2],
         winnerId: roundWinner,
         correctAnswer: q.correctAnswer,
-        p1Time: p1FinalTime, // ADDED: Player 1 Answer Time
-        p2Time: p2FinalTime  // ADDED: Player 2 Answer Time
+        p1Time: p1FinalTime, 
+        p2Time: p2FinalTime  
     };
     io.to(match.p1).emit('round_results', results);
     io.to(match.p2).emit('round_results', results);
     
-    // --- 2. CHECK FOR EARLY TERMINATION (2-0 Rule) ---
+    
+    // --- 2. TIEBREAKER / GAME PROGRESSION LOGIC ---
     const scoreP1 = match.scores[match.p1];
     const scoreP2 = match.scores[match.p2];
-    const scoreDiff = Math.abs(scoreP1 - scoreP2);
 
-    if (match.currentRound === 2 && scoreDiff >= 2) {
+    const nextRound = match.currentRound + 1;
+    
+    if (match.currentRound < INITIAL_ROUNDS) {
+        // Standard rounds: continue to the next round if possible
+        setTimeout(() => startGameRound(matchId, nextRound), 3000);
+        
+    } else if (scoreP1 !== scoreP2) {
+        // TIEBREAKER MODE (Round 4+): If the scores are NOT equal, a winner is found!
         endGame(matchId);
+        
+    } else if (nextRound <= match.matchQuestions.length) {
+        // TIEBREAKER MODE (Round 4+): Scores are STILL equal, start the next sudden death round
+        setTimeout(() => startGameRound(matchId, nextRound), 3000);
+        
     } else {
-        const nextRound = match.currentRound + 1;
-        if (nextRound <= TOTAL_ROUNDS) {
-            setTimeout(() => startGameRound(matchId, nextRound), 3000);
-        } else {
-            endGame(matchId); 
-        }
+        // We ran out of questions!
+        endGame(matchId, 'Draw (Questions Exhausted)'); 
     }
 }
 
@@ -235,7 +244,12 @@ function endGame(matchId, reason = null) {
     } else if (scoreP2 > scoreP1) {
         finalResult = 'Player 2 Wins';
         winnerId = match.p2;
+    } else if (reason && reason.includes('Exhausted')) {
+         // If exhausted, the game remains a draw unless a winner was found previously
+         finalResult = 'Draw';
+         winnerId = null;
     }
+
 
     const finalData = {
         p1Score: scoreP1,
@@ -251,7 +265,7 @@ function endGame(matchId, reason = null) {
     delete activeMatches[matchId];
 }
 
-// Global utility to shuffle arrays (for questions and options)
+// Global utility to shuffle arrays (Fisher-Yates Shuffle)
 function shuffleArray(array) {
     for (let i = array.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
