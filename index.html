@@ -53,24 +53,57 @@
         /* === 2. HEADER & SCOREBOARD === */
         h1 {
             color: var(--primary-color);
-            margin-top: 15;
+            margin-top: 15px; /* Added margin */
+            margin-bottom: 25px; /* Added margin */
             font-size: 3em; /* BIGGER TITLE */
         }
         h2 {
             font-size: 2em; /* BIGGER ROUND DISPLAY */
         }
+        
+        /* --- US OPEN SCOREBOARD DESIGN --- */
         .score-board { 
             display: flex; 
-            justify-content: space-around; 
             width: 90%;
-            margin-bottom: 20px; 
-            padding: 10px 0;
-            border-bottom: 3px solid var(--secondary-color);
-            font-weight: bold;
-            font-size: 1.5em; 
+            max-width: 450px; 
+            margin: 20px 0 10px 0; /* Margin on top/bottom */
+            padding: 0;
+            
+            /* Box Styling */
+            background-color: #f0f0f0; 
+            border: 2px solid #333; 
+            border-radius: 4px;
+            overflow: hidden; 
         }
-        #player-score { color: var(--primary-color); }
-        #opponent-score { color: #6c757d; }
+
+        /* Styling for the individual score segments */
+        .score-board span {
+            flex-grow: 1;
+            padding: 10px 0;
+            font-weight: bold;
+            font-size: 1.3em; 
+            
+            /* Text Alignment */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            
+            /* Center Divider */
+            border-right: 1px solid #ccc; 
+        }
+        
+        /* Specific Player Styling */
+        #player-score { 
+            color: white;
+            background-color: var(--primary-color); 
+            border-right: 2px solid #333; 
+        }
+        
+        #opponent-score { 
+            color: var(--text-color);
+            background-color: white; 
+        }
+        /* --- END US OPEN SCOREBOARD DESIGN --- */
 
         /* === 3. GAME AREA & FLAG IMAGE === */
         #game-area {
@@ -83,7 +116,7 @@
             padding-bottom: 30px; 
         }
         .flag-image { 
-            width: 95%; /* BIGGER FLAG WIDTH */
+            width: 95%; 
             max-width: 500px; /* BIGGER FLAG MAX SIZE */
             border: 3px solid var(--primary-color); 
             border-radius: 8px;
@@ -96,7 +129,7 @@
             flex-wrap: wrap;
             justify-content: center;
             width: 100%;
-            max-width: 550px; /* Increased max width slightly to accommodate button size */
+            max-width: 550px; 
         }
         .option-button { 
             padding: 20px 15px; /* Bigger padding for bigger text */
@@ -174,14 +207,10 @@
 <body>
 
 <div id="game-container">
+    
     <h1>🌍 Flag Quiz: Fast Lane</h1>
 
     <div id="status">Connecting to server and searching for a match...</div>
-
-    <div class="score-board">
-        <span id="player-score">YOU: 0</span>
-        <span id="opponent-score">OPPONENT: 0</span>
-    </div>
 
     <div id="game-area">
         <h2 id="round-display">Round X</h2>
@@ -195,6 +224,12 @@
             <span id="opponent-time"></span>
         </div>
     </div>
+    
+    <div class="score-board">
+        <span id="player-score">YOU: 0</span>
+        <span id="opponent-score">OPPONENT: 0</span>
+    </div>
+
 </div>
 
 <script src="/socket.io/socket.io.js"></script>
