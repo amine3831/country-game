@@ -6,37 +6,39 @@
     <style>
         /* === 1. FULL-SCREEN DESIGN & COLORS === */
         :root {
-            /* Define all colors here */
             --primary-color: #3f51b5; /* Indigo */
             --secondary-color: #ff9800; /* Orange Accent */
             --success-color: #4caf50; /* Green */
             --error-color: #f44336; /* Red */
             --bg-color: #e8eaf6; /* Light Purple/Blue Background */
             --text-color: #333;
+            --bg-gradient: linear-gradient(to bottom, #d2e3f4, #f8f9fa); /* Light Blue to White */
         }
 
         body { 
             font-family: 'Arial', sans-serif; 
             text-align: center; 
-            background-color: var(--bg-color);
+            background: var(--bg-gradient); /* Use the gradient background */
             margin: 0;
             padding: 0;
             display: flex;
             justify-content: center;
             align-items: center;
             min-height: 100vh;
+            height: 100vh; /* Crucial: Force full viewport height */
             color: var(--text-color);
         }
         #game-container { 
             width: 100%;
-            height: 100vh;
+            height: 100vh; /* Fill entire viewport height */
             max-width: 800px;
             padding: 20px; 
-            background-color: white;
-            box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+            background-color: transparent; /* See body background */
+            box-shadow: none; /* Removed harsh shadow */
             display: flex;
             flex-direction: column;
             align-items: center;
+            justify-content: space-between; /* Space out content vertically */
         }
 
         /* === 2. HEADER & SCOREBOARD === */
@@ -59,18 +61,19 @@
 
         /* === 3. GAME AREA & FLAG IMAGE === */
         #game-area {
-            flex-grow: 1;
-            display: none; /* Hide until match found */
+            flex-grow: 1; 
+            display: none; 
             flex-direction: column;
             align-items: center;
+            justify-content: space-around; /* Evenly space elements within game-area */
             width: 95%;
+            padding-bottom: 30px; 
         }
         .flag-image { 
             width: 90%;
             max-width: 350px; 
             border: 3px solid var(--primary-color); 
             border-radius: 8px;
-            margin-bottom: 20px; 
             box-shadow: 0 4px 6px rgba(0,0,0,0.1);
         }
 
@@ -114,7 +117,6 @@
             box-shadow: none !important;
         }
         .option-button.selected {
-            /* Temporary visual cue on submission */
             background-color: var(--secondary-color) !important;
             box-shadow: 0 0 10px 5px var(--secondary-color) !important;
         }
@@ -126,11 +128,12 @@
             border-radius: 4px;
             margin-top: 15px;
         }
-        #answer-time {
+        #time-display {
             font-style: italic;
-            color: var(--secondary-color);
-            margin-top: 10px;
+            margin-top: 15px;
         }
+        #player-time { color: var(--primary-color); }
+        #opponent-time { color: var(--error-color); }
 
         /* Media query for smaller screens */
         @media (max-width: 600px) {
@@ -158,7 +161,11 @@
         <div id="options-container">
             </div>
         <p id="result-message"></p>
-        <p id="answer-time"></p> 
+
+        <div id="time-display" style="display: flex; justify-content: space-around; width: 100%; font-weight: bold;">
+            <span id="player-time"></span>
+            <span id="opponent-time"></span>
+        </div>
     </div>
 </div>
 
@@ -180,7 +187,10 @@
     const resultMessageEl = document.getElementById('result-message');
     const playerScoreEl = document.getElementById('player-score');
     const opponentScoreEl = document.getElementById('opponent-score');
-    const answerTimeEl = document.getElementById('answer-time'); 
+    
+    // NEW TIME REFERENCES
+    const playerTimeEl = document.getElementById('player-time');
+    const opponentTimeEl = document.getElementById('opponent-time');
 
     // Helper to get CSS variables for use in JS
     function getCssVar(name) {
@@ -207,9 +217,10 @@
         roundDisplayEl.textContent = `▶️ Round ${data.round} of 3`;
         flagImageEl.src = data.image; 
         resultMessageEl.textContent = '';
-        answerTimeEl.textContent = ''; 
+        playerTimeEl.textContent = ''; // Clear previous time
+        opponentTimeEl.textContent = ''; // Clear previous time
         optionsContainerEl.innerHTML = ''; 
-        statusEl.style.backgroundColor = 'transparent'; // Reset status background
+        statusEl.style.backgroundColor = 'transparent'; 
         statusEl.style.color = getCssVar('--text-color');
 
 
@@ -232,16 +243,23 @@
         playerScoreEl.textContent = `YOU: ${myScore}`;
         opponentScoreEl.textContent = `OPPONENT: ${oppScore}`;
 
+        // Display BOTH Player Times from the server data
+        const myTime = isP1 ? data.p1Time : data.p2Time;
+        const oppTime = isP1 ? data.p2Time : data.p1Time;
+
+        // Use a placeholder if the player didn't answer in time (Infinity from server.js)
+        playerTimeEl.textContent = myTime < Infinity ? `YOU: ${myTime.toFixed(2)}s` : 'YOU: Timed Out';
+        opponentTimeEl.textContent = oppTime < Infinity ? `OPPONENT: ${oppTime.toFixed(2)}s` : 'OPPONENT: Timed Out';
+
+
         // Display result message
         resultMessageEl.textContent = `Correct Answer: ${data.correctAnswer}. `;
         resultMessageEl.style.backgroundColor = getCssVar('--bg-color'); 
 
         Array.from(optionsContainerEl.children).forEach(btn => {
             if (btn.textContent === data.correctAnswer) {
-                // Mark the correct button
                 btn.classList.add('correct');
             } else if (btn.classList.contains('selected')) {
-                 // Mark the player's incorrect choice
                  btn.classList.add('incorrect'); 
             }
         });
@@ -255,14 +273,13 @@
         }
 
         enableButtons(false);
-        // Remove temporary selection classes after results are shown
+        // Wait 3 seconds before next round starts (matches server timeout)
         setTimeout(() => {
             Array.from(optionsContainerEl.children).forEach(btn => {
                  btn.classList.remove('selected', 'correct', 'incorrect');
             });
-            // Re-enable primary color style after class removal
             enableButtons(true); 
-        }, 3000); // Wait 3 seconds before next round (matches server timeout)
+        }, 3000); 
     });
 
     socket.on('game_over', (data) => {
@@ -299,10 +316,6 @@
         isAnswered = true;
         enableButtons(false); 
 
-        // Calculate and display answer time 
-        const answerTime = (Date.now() - roundStartTime) / 1000;
-        answerTimeEl.textContent = `Your time: ${answerTime.toFixed(2)} seconds`;
-
         // Visually highlight the user's chosen answer
         buttonPressed.classList.add('selected');
 
@@ -317,11 +330,10 @@
         Array.from(optionsContainerEl.children).forEach(btn => {
             btn.disabled = !enabled;
             if (enabled) {
-                // Remove temporary classes when enabling
                  btn.classList.remove('selected', 'correct', 'incorrect');
                  btn.style.backgroundColor = getCssVar('--primary-color');
             } else {
-                 btn.style.backgroundColor = '#ccc'; // Grey out disabled buttons
+                 btn.style.backgroundColor = '#ccc'; 
             }
         });
     }
