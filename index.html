@@ -101,7 +101,7 @@
             width: 90%; 
             margin: 0 auto; 
             object-fit: contain; 
-            /* FIXED: Removed border and background */
+            /* Background and border removed */
             border-radius: 8px; 
             background-color: transparent;
             
@@ -393,7 +393,7 @@
         resultMessageEl.style.color = getCssVar('--text-color');
     });
 
-    // NEW LOGIC: Immediate feedback when the server registers the answer for BOTH players
+    // Immediate feedback when the server registers the answer for BOTH players
     socket.on('answer_registered', (data) => {
         const timeTaken = data.timeElapsed;
         
@@ -428,10 +428,30 @@
         playerScoreEl.textContent = data.p1Score;
         opponentScoreEl.textContent = data.p2Score;
 
-        // Display times (Reconfirm with official server time)
-        // Note: data.p1Time and data.p2Time are the final, server-calculated times in seconds.
-        playerTimeEl.textContent = `YOU: ${data.p1Time.toFixed(2)}s`;
-        opponentTimeEl.textContent = `OPPONENT: ${data.p2Time.toFixed(2)}s`; 
+        // --- CRITICAL FIX: Prevent overwriting displayed answer times if they were already set ---
+        
+        const playerTimeStr = data.p1Time.toFixed(2) + 's';
+        const opponentTimeStr = data.p2Time.toFixed(2) + 's';
+        
+        // 1. Update Player Time (Only if it's the default or submission status)
+        if (playerTimeEl.textContent.includes('--') || playerTimeEl.textContent.includes('Submitting')) {
+            if (data.p1Time === Infinity) {
+                 playerTimeEl.textContent = `YOU: Missed`;
+            } else {
+                 playerTimeEl.textContent = `YOU: ${playerTimeStr}`;
+            }
+        }
+        
+        // 2. Update Opponent Time (Only if it's the default or submission status)
+        if (opponentTimeEl.textContent.includes('--') || opponentTimeEl.textContent.includes('Submitting')) {
+            if (data.p2Time === Infinity) {
+                opponentTimeEl.textContent = `OPPONENT: Missed`;
+            } else {
+                opponentTimeEl.textContent = `OPPONENT: ${opponentTimeStr}`;
+            }
+        }
+        // --- END CRITICAL FIX ---
+
 
         // Style buttons based on result
         optionButtons.forEach(button => {
