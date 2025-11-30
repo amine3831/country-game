@@ -167,6 +167,10 @@
             max-width: 550px; 
             height: 26vh; 
             margin: 0;
+            
+            /* FIX: Use gap for predictable spacing between rows/columns */
+            gap: 1vh; 
+            padding: 0 1vh; /* Horizontal padding for container */
         }
         
         /* 6% for each choice */
@@ -177,7 +181,8 @@
             align-items: center;
             
             padding: 0; 
-            margin: 0.5vh; 
+            /* REMOVED: margin: 0.5vh; (Now using gap) */
+            margin: 0;
             
             cursor: pointer; 
             background-color: var(--primary-color);
@@ -186,8 +191,9 @@
             border-radius: 8px;
             font-size: 4.5vw; 
             transition: background-color 0.3s, transform 0.1s;
-            /* FIX: Changed calc(50% - 1vh) to a safe 48% to prevent premature wrapping */
-            width: 48%; 
+            
+            /* FIX: Use calc to reliably fit two items plus the 1vh gap */
+            width: calc(50% - 1.5vh); 
             box-shadow: 0 3px var(--primary-color);
         }
         .option-button:hover:not(:disabled) {
@@ -255,7 +261,8 @@
         /* Media query for smaller screens: tighter fit */
         @media (max-width: 768px) {
             .option-button {
-                width: calc(100% - 1vh); 
+                /* When forced to 1 column, use full width minus container padding */
+                width: calc(100% - 2vh); 
             }
         }
     </style>
@@ -439,10 +446,8 @@
         if (isAnswered) return;
         isAnswered = true;
         
-        // When answered, only the pressed button is visually updated
         buttonPressed.classList.add('selected');
 
-        // Disable all buttons immediately after selection
         enableButtons(false); 
 
         socket.emit('submit_answer', {
@@ -455,13 +460,9 @@
         Array.from(optionsContainerEl.children).forEach(btn => {
             btn.disabled = !enabled;
             if (enabled) {
-                 // Enabled buttons: Ensure they are blue and clear of state classes
                  btn.classList.remove('selected', 'correct', 'incorrect');
                  btn.style.backgroundColor = getCssVar('--primary-color'); 
             } else {
-                 // Disabled buttons (after answer submission):
-                 // If the button is NOT the selected one, set it to grey. 
-                 // The selected button's orange color is maintained by the .selected class via CSS priority.
                  if (!btn.classList.contains('selected') && !btn.classList.contains('correct') && !btn.classList.contains('incorrect')) {
                     btn.style.backgroundColor = '#ccc'; 
                  }
