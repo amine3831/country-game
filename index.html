@@ -52,9 +52,8 @@
             align-items: center; 
         }
 
-        /* === 2. PRECISE 100vh FLOW LAYOUT === */
+        /* === 2. PRECISE 100vh FLOW LAYOUT (No changes here) === */
         
-        /* 8% H + 1% M = 9vh (Title) */
         h1 {
             color: var(--primary-color);
             font-size: 6vw; 
@@ -68,7 +67,6 @@
             background-color: transparent; 
         }
 
-        /* 7% H + 1% M = 8vh (Status) */
         #status {
             height: 7vh;
             display: flex;
@@ -83,7 +81,6 @@
             background-color: transparent; 
         }
 
-        /* 7% H + 1% M = 8vh (Round Display) */
         #round-display {
             height: 7vh;
             display: flex;
@@ -96,7 +93,6 @@
             background-color: transparent; 
         }
 
-        /* 20% H + 1% M = 21vh (Flag Image) */
         .flag-image { 
             max-height: 20vh; 
             width: 90%; 
@@ -107,7 +103,6 @@
             margin-bottom: 1vh; 
         }
         
-        /* Options Container */
         #options-container {
             display: flex;
             flex-wrap: wrap;
@@ -118,7 +113,6 @@
             padding: 0 3vw; 
         }
         
-        /* 6% H + 1% M = 7vh per element (in flow) */
         .option-button { 
             height: 6vh; 
             display: flex;
@@ -142,7 +136,6 @@
             text-overflow: ellipsis;
         }
         
-        /* State styles for buttons */
         .option-button:hover:not(:disabled) {
             background-color: #303f9f;
             transform: translateY(-2px);
@@ -168,7 +161,6 @@
             transform: scale(1.05);
         }
 
-        /* 10% H + 1% M = 11vh (Result Message) */
         #result-message {
             height: 10vh; 
             display: flex;
@@ -183,7 +175,6 @@
             background-color: transparent; 
         }
 
-        /* 7% H + 1% M = 8vh (Time Display) */
         #time-display {
             height: 7vh;
             display: flex;
@@ -199,7 +190,7 @@
             background-color: transparent; 
         }
 
-        /* === 3. SCOREBOARD STYLES (MATCHING IMAGE) === */
+        /* === 3. SCOREBOARD STYLES (UPDATED FOR ROUND-BY-ROUND) === */
         
         #final-score-message {
             font-size: 4vw;
@@ -217,10 +208,10 @@
             margin: 0 auto; 
             padding: 1vh 0; 
             
-            border: 2px solid var(--text-color); /* Dark border around the whole box */
+            border: 2px solid var(--text-color); 
             border-radius: 8px;
             overflow: hidden; 
-            background-color: white; /* White background for the round board */
+            background-color: white; 
         }
 
         /* Scoreboard content styling */
@@ -232,11 +223,11 @@
             flex-direction: column;
             justify-content: center;
             align-items: center;
-            color: var(--text-color); /* Default text color */
+            color: var(--text-color);
             background-color: transparent;
         }
         
-        /* Round Scoreboard default styles (smaller) */
+        /* Round Scoreboard default styles (smaller, simple text) */
         .score-board:not(.final-board) #player-score { 
             font-size: 4.5vw; 
             color: var(--primary-color); /* You: Blue score text */
@@ -255,11 +246,7 @@
             border-right: 1px solid var(--text-color); /* Thin divider */
         }
         
-        #opponent-score-container { 
-            /* No special styles needed */
-        }
-
-        /* FINAL SCOREBOARD SPECIFIC STYLES (Kept for Game Over screen) */
+        /* FINAL SCOREBOARD SPECIFIC STYLES (For Game Over screen) */
         .score-board.final-board {
             width: 80%;
             max-width: 350px;
@@ -360,15 +347,15 @@
     let opponentScore = 0;
     let isP1 = false; // Track if local player is P1
 
-    // --- ELEMENT REFERENCES ---
+    // --- ELEMENT REFERENCES (Ensure we get fresh references if innerHTML is changed) ---
     const gameContainerEl = document.getElementById('game-container');
     const statusEl = document.getElementById('status');
     const roundDisplayEl = document.getElementById('round-display');
     const flagImageEl = document.getElementById('current-flag');
     const optionsContainerEl = document.getElementById('options-container');
     const resultMessageEl = document.getElementById('result-message');
-    const playerScoreEl = document.getElementById('player-score');
-    const opponentScoreEl = document.getElementById('opponent-score');
+    let playerScoreEl = document.getElementById('player-score'); // Use let
+    let opponentScoreEl = document.getElementById('opponent-score'); // Use let
     const playerTimeEl = document.getElementById('player-time');
     const opponentTimeEl = document.getElementById('opponent-time');
     const scoreboardContainerEl = document.getElementById('scoreboard-container');
@@ -409,7 +396,6 @@
         resultMessageEl.style.display = showRoundDisplay ? 'flex' : 'none';
         playerTimeEl.parentElement.style.display = showRoundDisplay ? 'flex' : 'none';
         
-        // In the beginning, the scoreboard is NOT hidden, but it is when status is centered
         scoreboardContainerEl.style.display = showRoundDisplay ? 'flex' : 'none';
 
         // --- CRITICAL ALIGNMENT CHANGE ---
@@ -456,7 +442,8 @@
         isAnswered = false;
         resetUI(true); // Show quiz elements
         
-        // Restore round scoreboard content (needed if the previous game ended)
+        // ******* FIX: Ensure the round scoreboard structure is restored *******
+        // This is necessary because game_over modifies the innerHTML of the score containers.
         document.getElementById('player-score-container').innerHTML = `
             <span id="player-score">${playerScoreEl.textContent}</span>
             <span class="label">YOU</span>
@@ -614,6 +601,7 @@
         const p1ScoreContainer = document.getElementById('player-score-container');
         const p2ScoreContainer = document.getElementById('opponent-score-container');
         
+        // The innerHTML structure of the score containers is replaced for the final screen
         p1ScoreContainer.innerHTML = `
             <span class="player-name">
                 <span class="color-box" id="player-color-box"></span>
@@ -629,6 +617,10 @@
             </span>
             <span id="opponent-score">${oppScore}</span>
         `;
+        
+        // Re-assign references after modifying innerHTML
+        playerScoreEl = document.getElementById('player-score');
+        opponentScoreEl = document.getElementById('opponent-score');
         // --- End Scoreboard HTML Update ---
         
         // Add "FINAL SCORES" title
