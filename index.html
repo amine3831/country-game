@@ -97,19 +97,16 @@
 
         /* 20% H + 1% M = 21vh (Flag Image) */
         .flag-image { 
-            /* FIX: Use max-height instead of fixed height to respect aspect ratio */
             max-height: 20vh; 
-            
-            /* Keep width at 90% to match options and utilize screen space */
             width: 90%; 
             margin: 0 auto; 
-            
             object-fit: contain; 
-            /*border: 3px solid var(--primary-color); */
+            /* REMOVED BORDER: */
+            /* border: 3px solid var(--primary-color); */ 
             border-radius: 8px;
             
             margin-bottom: 1vh; 
-            background-color: transparent; 
+            background-color: #f0f0f0; 
         }
         
         /* Options Container */
@@ -291,6 +288,8 @@
     const socket = io();
     let currentMatchId = null;
     let isAnswered = false;
+    // NEW: Variable to track when the round started for time calculation
+    let roundStartTime = 0; 
     let myScore = 0;
     let opponentScore = 0;
 
@@ -369,6 +368,9 @@
         isAnswered = false;
         resetUI(true); // Show quiz elements
         
+        // NEW: Record the precise time the client received the new round
+        roundStartTime = Date.now(); 
+        
         statusEl.textContent = 'Go!';
         statusEl.style.color = getCssVar('--text-color');
         roundDisplayEl.textContent = `▶️ Round ${data.round}`;
@@ -393,6 +395,19 @@
         resultMessageEl.style.color = getCssVar('--text-color');
     });
 
+    // NEW HANDLER: Immediate feedback when the server registers the answer
+    socket.on('answer_registered', (data) => {
+        const timeTaken = (data.serverReceiveTime - roundStartTime) / 1000;
+        
+        // Update the result message immediately
+        resultMessageEl.textContent = '✅ Answer Submitted! Waiting for opponent...';
+        resultMessageEl.style.color = getCssVar('--primary-color');
+        
+        // Update player time display immediately
+        playerTimeEl.textContent = `YOU: ${timeTaken.toFixed(2)}s`;
+    });
+
+
     socket.on('round_results', (data) => {
         const optionButtons = optionsContainerEl.querySelectorAll('.option-button');
         const myId = socket.id;
@@ -405,9 +420,9 @@
         playerScoreEl.textContent = data.p1Score;
         opponentScoreEl.textContent = data.p2Score;
 
-        // Display times
-        playerTimeEl.textContent = `YOU: ${data.p1Time.toFixed(2)}s`;
-        opponentTimeEl.textContent = `OPPONENT: ${data.p2Time.toFixed(2)}s`;
+        // Display times (opponent time is now accurate)
+        // Player time is already displayed from 'answer_registered' but is reconfirmed here.
+        opponentTimeEl.textContent = `OPPONENT: ${data.p2Time.toFixed(2)}s`; 
 
         // Style buttons based on result
         optionButtons.forEach(button => {
@@ -502,7 +517,7 @@
             answer: answer
         });
         
-        resultMessageEl.textContent = 'Waiting for opponent...';
+        resultMessageEl.textContent = 'Submitting answer...';
         resultMessageEl.style.color = getCssVar('--text-color');
     }
 
