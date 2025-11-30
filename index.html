@@ -45,7 +45,7 @@
             background-color: transparent; 
         }
 
-        /* NEW: Centers content when only the status message is visible */
+        /* FIX: Centers content when only the status message is visible */
         #game-container.centered-status {
             justify-content: center;
             align-items: center; 
@@ -97,10 +97,13 @@
 
         /* 20% H + 1% M = 21vh (Flag Image) */
         .flag-image { 
-            height: 20vh; 
-            /* FIX: Use 90% width to better match options container */
+            /* FIX: Use max-height instead of fixed height to respect aspect ratio */
+            max-height: 20vh; 
+            
+            /* Keep width at 90% to match options and utilize screen space */
             width: 90%; 
             margin: 0 auto; 
+            
             object-fit: contain; 
             border: 3px solid var(--primary-color); 
             border-radius: 8px;
@@ -292,7 +295,7 @@
     let opponentScore = 0;
 
     // --- ELEMENT REFERENCES ---
-    const gameContainerEl = document.getElementById('game-container'); // NEW REFERENCE for centering
+    const gameContainerEl = document.getElementById('game-container');
     const statusEl = document.getElementById('status');
     const roundDisplayEl = document.getElementById('round-display');
     const flagImageEl = document.getElementById('current-flag');
@@ -321,7 +324,7 @@
         optionsContainerEl.style.display = showRoundDisplay ? 'flex' : 'none';
         resultMessageEl.style.display = showRoundDisplay ? 'flex' : 'none';
         playerTimeEl.parentElement.style.display = showRoundDisplay ? 'flex' : 'none';
-        scoreboardContainerEl.style.display = showRoundDisplay ? 'flex' : 'none'; // Hide scoreboard when waiting
+        scoreboardContainerEl.style.display = showRoundDisplay ? 'flex' : 'none';
         
         // --- CRITICAL ALIGNMENT CHANGE ---
         if (showRoundDisplay) {
@@ -371,7 +374,7 @@
         roundDisplayEl.textContent = `▶️ Round ${data.round}`;
         flagImageEl.src = data.image;
 
-        // Reset button colors
+        // Reset button colors and enable them
         optionsContainerEl.querySelectorAll('.option-button').forEach(btn => {
             btn.classList.remove('correct', 'incorrect', 'selected');
             btn.disabled = false;
