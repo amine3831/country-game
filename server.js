@@ -80,9 +80,7 @@ function createNewMatch(p1Id, p2Id, matchId) {
         currentRound: 0,
         matchQuestions: shuffledQuestions, // All flags for the match
         roundAnswers: { p1: null, p2: null }, // Temp storage for current round answers
-        // Store match start time for accurate time calculation relative to round start
-        // Although this is used for final time calculation, roundStartTime in client is better for user perception.
-        startTime: Date.now() 
+        roundStartTime: 0 // New property to track the start time of the current round
     };
 
     io.to(p1Id).emit('match_found', { matchId, isP1: true });
@@ -104,6 +102,9 @@ function startGameRound(matchId, roundNumber) {
     // Reset round state
     match.currentRound = roundNumber;
     match.roundAnswers = { p1: null, p2: null }; 
+    
+    // **CRITICAL FIX 1: Record the Server's Round Start Time**
+    match.roundStartTime = Date.now(); 
 
     // Get the current question (flag)
     const questionIndex = roundNumber - 1;
@@ -141,7 +142,7 @@ function calculateScores(matchId, isFinalCheck = false) {
     const match = activeMatches[matchId];
     if (!match) return;
 
-    const { p1Id, p2Id, roundAnswers, matchQuestions, currentRound } = match;
+    const { p1Id, p2Id, roundAnswers, matchQuestions, currentRound, roundStartTime } = match;
     const currentQuestion = matchQuestions[currentRound - 1];
     const correctAnswer = currentQuestion.country;
 
@@ -174,15 +175,18 @@ function calculateScores(matchId, isFinalCheck = false) {
             winnerId = p2Id;
         }
 
+        // **CRITICAL FIX 2: Calculate elapsed time using server's roundStartTime**
+        const p1TimeElapsed = p1Answer ? (p1Answer.time - roundStartTime) / 1000 : Infinity; 
+        const p2TimeElapsed = p2Answer ? (p2Answer.time - roundStartTime) / 1000 : Infinity;
+        
         // --- Broadcast Round Results ---
         io.to(matchId).emit('round_results', {
             correctAnswer: correctAnswer,
             p1Score: match.p1Score,
             p2Score: match.p2Score,
-            // These times are currently raw server receive times.
-            // The client will calculate the difference from their round start time.
-            p1Time: p1Answer ? p1Answer.time : Infinity, 
-            p2Time: p2Answer ? p2Answer.time : Infinity,
+            // Send the calculated elapsed time
+            p1Time: p1TimeElapsed, 
+            p2Time: p2TimeElapsed,
             winnerId: winnerId
         });
         
@@ -268,31 +272,34 @@ io.on('connection', (socket) => {
         const match = activeMatches[data.matchId];
         if (!match) return;
 
-        // **CRITICAL FIX: Record the time the server RECEIVED the answer**
+        // **CRITICAL: Record the time the server RECEIVED the answer (P1 or P2 time)**
         const receiveTime = Date.now(); 
         
         const answerData = {
             answer: data.answer,
-            time: receiveTime // Use the reliable server-side timestamp
+            time: receiveTime // Use the reliable server-side timestamp for official scorekeeping
         };
 
         const isP1 = socket.id === match.p1Id;
+        const timeElapsed = (receiveTime - match.roundStartTime) / 1000;
 
         // Store the answer based on which player submitted it
         if (isP1 && !match.roundAnswers.p1) {
             match.roundAnswers.p1 = answerData;
             
-            // **NEW LOGIC: Emit immediate feedback to the submitting player**
+            // Emit immediate feedback to the submitting player
             socket.emit('answer_registered', {
-                serverReceiveTime: receiveTime
+                serverReceiveTime: receiveTime,
+                timeElapsed: timeElapsed // Send the already calculated elapsed time
             });
 
         } else if (!isP1 && !match.roundAnswers.p2) {
             match.roundAnswers.p2 = answerData;
             
-            // **NEW LOGIC: Emit immediate feedback to the submitting player**
+            // Emit immediate feedback to the submitting player
             socket.emit('answer_registered', {
-                serverReceiveTime: receiveTime
+                serverReceiveTime: receiveTime,
+                timeElapsed: timeElapsed // Send the already calculated elapsed time
             });
         }
         
