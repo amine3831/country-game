@@ -9,7 +9,7 @@
             box-sizing: border-box;
         }
         
-        /* === 1. FULL-SCREEN DESIGN & COLORS & NO SCROLL === */
+        /* === 1. FULL-SCREEN DESIGN & NO SCROLL === */
         :root {
             --primary-color: #3f51b5; /* Indigo */
             --secondary-color: #ff9800; /* Orange */
@@ -43,12 +43,12 @@
             padding: 0; 
             display: flex; 
             flex-direction: column;
-            background-color: transparent; /* Removed visualization background */
+            background-color: transparent; 
         }
 
-        /* === 2. HEADER & GAME ELEMENTS (PRECISE 100vh FLOW LAYOUT) === */
+        /* === 2. PRECISE 100vh FLOW LAYOUT === */
         
-        /* 8% H + 1% M = 9vh */
+        /* 8% H + 1% M = 9vh (Title) */
         h1 {
             color: var(--primary-color);
             font-size: 6vw; 
@@ -62,7 +62,7 @@
             background-color: white; 
         }
 
-        /* 7% H + 1% M = 8vh */
+        /* 7% H + 1% M = 8vh (Status) */
         #status {
             height: 7vh;
             display: flex;
@@ -77,7 +77,7 @@
             background-color: white; 
         }
 
-        /* 7% H + 1% M = 8vh */
+        /* 7% H + 1% M = 8vh (Round Display) */
         #round-display {
             height: 7vh;
             display: flex;
@@ -90,7 +90,7 @@
             background-color: white; 
         }
 
-        /* 20% H + 1% M = 21vh */
+        /* 20% H + 1% M = 21vh (Flag Image) */
         .flag-image { 
             height: 20vh; 
             width: 90%; 
@@ -100,7 +100,7 @@
             border-radius: 8px;
             margin: 0 auto; 
             margin-bottom: 1vh;
-            background-color: #f0f0f0; /* Light grey placeholder */
+            background-color: #f0f0f0; 
         }
         
         /* Options Container */
@@ -116,6 +116,7 @@
         }
         
         /* 6% H + 1% M = 7vh per element (in flow) */
+        /* CRITICAL FOR 2x2 LAYOUT: Setting width slightly under 50% forces wrap */
         .option-button { 
             height: 6vh; 
             display: flex;
@@ -133,11 +134,11 @@
             border-radius: 8px;
             font-size: 4.5vw; 
             transition: background-color 0.3s, transform 0.1s;
-            width: calc(50% - 1vh); 
+            width: calc(50% - 1vh); /* Forces 2 per row */
             box-shadow: 0 3px var(--primary-color);
         }
         
-        /* State styles for buttons (retained) */
+        /* State styles for buttons (retained for functionality) */
         .option-button:hover:not(:disabled) {
             background-color: #303f9f;
             transform: translateY(-2px);
@@ -187,7 +188,7 @@
             width: 100%;
             font-weight: bold;
             margin: 0;
-            margin-bottom: 0vh; /* Adjusted to 0vh to compensate for 10vh result msg */
+            margin-bottom: 0vh; /* ADJUSTED to 0vh to fit 100vh total */
             padding: 0 3vw;
             background-color: white; 
         }
@@ -200,7 +201,7 @@
             width: 90%;
             max-width: 450px; 
             margin: 0 auto; 
-            margin-bottom: 0vh; /* Adjusted to 0vh to fit 100vh total */
+            margin-bottom: 0vh; /* ADJUSTED to 0vh to fit 100vh total */
             padding: 0;
             
             border: 2px solid #333; 
@@ -231,12 +232,6 @@
         #opponent-score { 
             color: var(--text-color);
             background-color: white; 
-        }
-        
-        @media (max-width: 768px) {
-            .option-button {
-                width: calc(100% - 1vh); 
-            }
         }
     </style>
 </head>
@@ -297,8 +292,9 @@
         return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
     }
 
-    // --- MOCK UP FUNCTIONS FOR VISUAL TEST (Retained for quick front-end debugging) ---
+    // --- MOCK UP FUNCTIONS FOR VISUAL TEST ---
     document.addEventListener('DOMContentLoaded', () => {
+        // Set mock content to visually confirm layout
         statusEl.textContent = '🤝 Match Found! Getting ready...';
         roundDisplayEl.textContent = '▶️ Round 1 of 3';
         resultMessageEl.textContent = 'Correct Answer Message Here';
@@ -309,7 +305,6 @@
         const dummyButtons = optionsContainerEl.querySelectorAll('.option-button');
         dummyButtons.forEach(btn => btn.style.display = 'flex');
     });
-    // -----------------------------------------------------------------------------------
 </script>
 </body>
 </html>
