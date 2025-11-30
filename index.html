@@ -36,14 +36,15 @@
             max-width: none; 
             margin: 0; 
             
-            /* ADDED: Extra padding at the bottom to ensure the fixed scoreboard is not obscured by content */
-            padding: 2vh 3vw 8vh 3vw; 
+            /* Reduced top padding, kept bottom padding for the fixed scoreboard */
+            padding: 1vh 3vw 8vh 3vw; 
             box-shadow: none; 
             
             display: flex;
             flex-direction: column;
             align-items: center;
-            justify-content: space-evenly; 
+            /* CRITICAL CHANGE: Start content at the top, allowing fixed heights to dictate flow */
+            justify-content: flex-start; 
             
             box-sizing: border-box; 
             
@@ -51,31 +52,46 @@
             border-radius: 0; 
         }
 
-        /* === 2. HEADER & SCOREBOARD (Using REM/VW) === */
+        /* === 2. HEADER & SCOREBOARD (8% SLICES) === */
         h1 {
             color: var(--primary-color);
             font-size: 6vw; 
-            margin: 1vh 0; 
+            /* VERTICAL SLICE: 8% (Approximate, as height is determined by font size) */
+            margin: 0;
+            padding-top: 1vh; /* Small buffer */
+            padding-bottom: 3vh; /* Total vertical space for h1 is approx 8vh */
+            line-height: 4vh;
         }
-        h2 {
+        
+        /* Apply vertical space after the element to achieve the 8% slice */
+        #status:not(.centered-status) { 
+            padding-top: 1vh;
+            padding-bottom: 3vh; /* Total vertical space is approx 8vh */
+            margin: 0;
+            line-height: 4vh;
+            position: relative; 
+        }
+
+        h2#round-display {
             font-size: 5vw; 
-            margin: 1vh 0;
+            /* VERTICAL SLICE: 8% */
+            margin: 0;
+            padding-top: 1vh;
+            padding-bottom: 3vh; /* Total vertical space for h2 is approx 8vh */
+            line-height: 4vh;
         }
         
         /* --- US OPEN SCOREBOARD DESIGN --- */
         .score-board { 
-            /* *** CRITICAL FIX FOR VISIBILITY *** */
             position: absolute; 
             bottom: 2vh;        
             left: 50%;          
             transform: translateX(-50%); 
             z-index: 10; 
-            /* *** END CRITICAL FIX *** */
 
             display: flex; 
             width: 90%;
             max-width: 450px; 
-            /* Removed all margins */
             margin: 0; 
             padding: 0;
             
@@ -85,7 +101,6 @@
             overflow: hidden; 
         }
 
-        /* Styling for the individual score segments */
         .score-board span {
             flex-grow: 1;
             padding: 1vh 0;
@@ -99,7 +114,6 @@
             border-right: 1px solid #ccc; 
         }
         
-        /* Specific Player Styling */
         #player-score { 
             color: white;
             background-color: var(--primary-color); 
@@ -110,40 +124,52 @@
             color: var(--text-color);
             background-color: white; 
         }
-        /* --- END US OPEN SCOREBOARD DESIGN --- */
 
         /* === 3. GAME AREA & FLAG IMAGE === */
         #game-area {
-            flex-grow: 1; 
+            /* Now uses flex-start, so it simply groups the middle elements */
             display: none; 
             flex-direction: column;
             align-items: center;
-            justify-content: space-evenly;
+            justify-content: flex-start; /* CRITICAL CHANGE */
             width: 95%;
-            padding-bottom: 0.5vh; 
+            padding: 0; 
+            /* This area's total height should now be controlled by its children */
         }
+        
         .flag-image { 
+            /* VERTICAL SLICE: 24% */
             width: 90%; 
             max-width: 450px; 
-            max-height: 35vh; 
-            height: auto;
+            height: 22vh; /* Use 22vh to allow for 1vh top/bottom margin */
+            margin-top: 1vh; 
+            margin-bottom: 1vh; /* Total 24vh slice */
+            object-fit: contain; /* Ensure flag scales correctly within the fixed height */
+            
             border: 3px solid var(--primary-color); 
             border-radius: 8px;
             box-shadow: 0 4px 6px rgba(0,0,0,0.1);
         }
 
-        /* === 4. BUTTONS & OPTIONS === */
+        /* === 4. BUTTONS & OPTIONS (4 * 8% = 32%) === */
         #options-container {
             display: flex;
             flex-wrap: wrap;
             justify-content: center;
             width: 100%;
             max-width: 550px; 
-            margin-top: 1vh;
+            /* Total height for all 4 buttons */
+            height: 32vh; 
+            margin: 0;
+            padding: 0;
         }
         .option-button { 
-            padding: 2.5vh 2vw; 
-            margin: 1vh; 
+            /* VERTICAL SLICE: 8% per button */
+            height: 7vh; /* Use 7vh to allow for 1vh total margin/gap */
+            line-height: 7vh; 
+            padding: 0;
+            margin: 0.5vh; /* 0.5vh top/bottom margin for a small gap */
+            
             cursor: pointer; 
             background-color: var(--primary-color);
             color: white;
@@ -151,52 +177,48 @@
             border-radius: 8px;
             font-size: 4.5vw; 
             transition: background-color 0.3s, transform 0.1s;
-            width: calc(50% - 2vh);
+            width: calc(50% - 1vh); /* Adjusted width to account for 0.5vh margins */
             box-shadow: 0 3px var(--primary-color);
         }
-        .option-button:hover:not(:disabled) {
-            background-color: #303f9f;
-            transform: translateY(-2px);
-            box-shadow: 0 5px #303f9f;
-        }
-        .option-button:disabled {
-            background-color: #ccc;
-            cursor: default;
-            box-shadow: none;
-        }
-        .option-button.correct {
-            background-color: var(--success-color) !important;
-            box-shadow: 0 3px var(--success-color) !important;
-        }
-        .option-button.incorrect {
-            background-color: var(--error-color) !important;
-            box-shadow: none !important;
-        }
-        .option-button.selected {
-            background-color: var(--secondary-color) !important;
-            box-shadow: 0 0 10px 5px var(--secondary-color) !important;
-        }
 
-        /* === 5. STATUS AND MESSAGE AREAS === */
-        #status, #result-message {
-            padding: 1.5vh;
+        /* === 5. RESULTS AND TIME (2 * 8% = 16%) === */
+        #result-message {
+            /* VERTICAL SLICE: 8% */
+            padding-top: 1vh;
+            padding-bottom: 3vh; /* Total vertical space is approx 8vh */
             font-weight: bold;
             border-radius: 4px;
-            margin-top: 1vh;
+            margin: 0; 
             font-size: 5vw; 
+            line-height: 4vh;
         }
+        
         #time-display {
+            /* VERTICAL SLICE: 8% */
             font-style: italic;
-            margin-top: 1vh;
+            padding-top: 1vh;
+            padding-bottom: 3vh; /* Total vertical space is approx 8vh */
+            margin: 0;
             font-size: 4vw; 
+            line-height: 4vh;
+            display: flex; 
+            justify-content: space-around; 
+            width: 100%; 
+            font-weight: bold;
         }
-        #player-time { color: var(--primary-color); }
-        #opponent-time { color: var(--error-color); }
+
+        /* NEW CLASS: For centering the status element when waiting for a match */
+        .centered-status {
+            position: absolute; 
+            top: 50%;          
+            left: 50%;          
+            transform: translate(-50%, -50%); 
+        }
 
         /* Media query for smaller screens: tighter fit */
         @media (max-width: 768px) {
             .option-button {
-                width: calc(100% - 2vh); 
+                width: calc(100% - 1vh); /* Buttons go full width, accounting for 0.5vh side margins */
             }
         }
     </style>
@@ -216,7 +238,7 @@
             </div>
         <p id="result-message"></p>
 
-        <div id="time-display" style="display: flex; justify-content: space-around; width: 100%; font-weight: bold;">
+        <div id="time-display">
             <span id="player-time"></span>
             <span id="opponent-time"></span>
         </div>
@@ -261,6 +283,8 @@
     socket.on('waiting_for_opponent', () => {
         statusEl.textContent = '⏳ Waiting for an opponent to join...';
         gameAreaEl.style.display = 'none';
+        
+        statusEl.classList.add('centered-status'); 
     });
 
     socket.on('match_found', (data) => {
@@ -268,11 +292,12 @@
         currentMatchId = data.matchId;
         isP1 = data.isP1;
         gameAreaEl.style.display = 'flex'; 
+        
+        statusEl.classList.remove('centered-status');
     });
 
     socket.on('new_round', (data) => {
         isAnswered = false;
-        // The display now relies on the server to send the current round number
         roundDisplayEl.textContent = `▶️ Round ${data.round} of 3`; 
         flagImageEl.src = data.image; 
         resultMessageEl.textContent = '';
@@ -358,6 +383,8 @@
             statusEl.style.color = 'white';
         }
         statusEl.textContent = finalMessage;
+        
+        statusEl.classList.add('centered-status');
     });
 
     socket.on('opponent_disconnected', (message) => {
@@ -365,6 +392,8 @@
         statusEl.textContent = `🛑 ${message}`;
         statusEl.style.backgroundColor = getCssVar('--error-color');
         statusEl.style.color = 'white';
+        
+        statusEl.classList.add('centered-status');
     });
 
     // --- CLIENT ACTIONS (Sending data to server.js) ---
