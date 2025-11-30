@@ -80,6 +80,9 @@ function createNewMatch(p1Id, p2Id, matchId) {
         currentRound: 0,
         matchQuestions: shuffledQuestions, // All flags for the match
         roundAnswers: { p1: null, p2: null }, // Temp storage for current round answers
+        // Store match start time for accurate time calculation relative to round start
+        // Although this is used for final time calculation, roundStartTime in client is better for user perception.
+        startTime: Date.now() 
     };
 
     io.to(p1Id).emit('match_found', { matchId, isP1: true });
@@ -176,9 +179,10 @@ function calculateScores(matchId, isFinalCheck = false) {
             correctAnswer: correctAnswer,
             p1Score: match.p1Score,
             p2Score: match.p2Score,
-            // Calculate time taken for display (time is in milliseconds from server receipt)
-            p1Time: p1Answer ? (p1Answer.time - match.startTime) / 1000 : Infinity, 
-            p2Time: p2Answer ? (p2Answer.time - match.startTime) / 1000 : Infinity,
+            // These times are currently raw server receive times.
+            // The client will calculate the difference from their round start time.
+            p1Time: p1Answer ? p1Answer.time : Infinity, 
+            p2Time: p2Answer ? p2Answer.time : Infinity,
             winnerId: winnerId
         });
         
@@ -272,11 +276,24 @@ io.on('connection', (socket) => {
             time: receiveTime // Use the reliable server-side timestamp
         };
 
+        const isP1 = socket.id === match.p1Id;
+
         // Store the answer based on which player submitted it
-        if (socket.id === match.p1Id && !match.roundAnswers.p1) {
+        if (isP1 && !match.roundAnswers.p1) {
             match.roundAnswers.p1 = answerData;
-        } else if (socket.id === match.p2Id && !match.roundAnswers.p2) {
+            
+            // **NEW LOGIC: Emit immediate feedback to the submitting player**
+            socket.emit('answer_registered', {
+                serverReceiveTime: receiveTime
+            });
+
+        } else if (!isP1 && !match.roundAnswers.p2) {
             match.roundAnswers.p2 = answerData;
+            
+            // **NEW LOGIC: Emit immediate feedback to the submitting player**
+            socket.emit('answer_registered', {
+                serverReceiveTime: receiveTime
+            });
         }
         
         // Check if both players have submitted
