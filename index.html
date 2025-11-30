@@ -166,21 +166,21 @@
             margin: 0; 
         }
         
-        /* --- Options Container (~26vh) --- */
+        /* --- Options Container (Now dynamic height for visualization) --- */
         
         #options-container {
-            /* VISUAL SPLIT: Light Blue */
-            background-color: #bbdefb; 
+            /* REMOVED fixed height (26vh) and background-color for visualization */
             display: flex;
             flex-wrap: wrap;
             justify-content: center;
             width: 100%;
             max-width: 550px; 
-            height: 26vh; 
+            height: auto; 
             margin: 0;
+            padding: 0;
         }
         
-        /* 6% for each choice */
+        /* 6% for each choice + 1vh margin = 7vh per element */
         .option-button { 
             height: 6vh; 
             display: flex;
@@ -188,19 +188,28 @@
             align-items: center;
             
             padding: 0; 
-            margin: 0.5vh; 
+            /* VISUAL SPLIT: 1vh top margin to show separation */
+            margin: 1vh 0.5vh 0 0.5vh; 
             
             cursor: pointer; 
-            background-color: var(--primary-color);
+            
+            /* Assigning unique background colors for visualization */
+            background-color: var(--primary-color); 
             color: white;
             border: none;
             border-radius: 8px;
             font-size: 4.5vw; 
             transition: background-color 0.3s, transform 0.1s;
-            /* Reverting button width to previous value for consistent viewing */
             width: calc(50% - 1vh); 
             box-shadow: 0 3px var(--primary-color);
         }
+        
+        /* Unique colors for individual choice visualization (temporary) */
+        .option-button:nth-child(1) { background-color: #66bb6a; margin-top: 2vh;} /* Start of choices section */
+        .option-button:nth-child(2) { background-color: #4db6ac; }
+        .option-button:nth-child(3) { background-color: #ffb74d; }
+        .option-button:nth-child(4) { background-color: #ff8a65; }
+
         .option-button:hover:not(:disabled) {
             background-color: #303f9f;
             transform: translateY(-2px);
@@ -238,8 +247,10 @@
             font-weight: bold;
             font-size: 5vw; 
             width: 100%;
-            margin: 0;
             padding: 0;
+            /* Result message margin from previous request */
+            margin-top: 1vh; 
+            margin-bottom: 0; 
         }
 
         /* 7% for the time answer */
@@ -340,9 +351,6 @@
     }
 
     // --- MOCK UP FUNCTIONS FOR VISUAL TEST ---
-    // Since the actual socket connection isn't available, we'll initialize 
-    // the game area to ensure the visual split is visible immediately.
-    
     document.addEventListener('DOMContentLoaded', () => {
         // Ensure game area is visible for the visual test
         gameAreaEl.style.display = 'flex';
@@ -353,13 +361,8 @@
         playerTimeEl.textContent = 'YOU: 1.5s';
         opponentTimeEl.textContent = 'OPPONENT: 2.0s';
         
-        // Hide the dummy buttons and uncomment this section if you load this with a server.
         const dummyButtons = optionsContainerEl.querySelectorAll('.option-button');
-        dummyButtons.forEach(btn => btn.style.display = 'block'); // Just showing the blocks now
-        
-        // You would normally initialize the flag image source here:
-        // flagImageEl.src = 'path/to/flag.png';
-        
+        dummyButtons.forEach(btn => btn.style.display = 'flex');
     });
 
     // The rest of the JS functions (submitAnswer, enableButtons, socket listeners) 
