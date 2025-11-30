@@ -80,7 +80,7 @@ function createNewMatch(p1Id, p2Id, matchId) {
         currentRound: 0,
         matchQuestions: shuffledQuestions, // All flags for the match
         roundAnswers: { p1: null, p2: null }, // Temp storage for current round answers
-        roundStartTime: 0 // New property to track the start time of the current round
+        roundStartTime: 0 
     };
 
     io.to(p1Id).emit('match_found', { matchId, isP1: true });
@@ -103,7 +103,7 @@ function startGameRound(matchId, roundNumber) {
     match.currentRound = roundNumber;
     match.roundAnswers = { p1: null, p2: null }; 
     
-    // **CRITICAL FIX 1: Record the Server's Round Start Time**
+    // Record the Server's Round Start Time
     match.roundStartTime = Date.now(); 
 
     // Get the current question (flag)
@@ -175,7 +175,7 @@ function calculateScores(matchId, isFinalCheck = false) {
             winnerId = p2Id;
         }
 
-        // **CRITICAL FIX 2: Calculate elapsed time using server's roundStartTime**
+        // Calculate elapsed time using server's roundStartTime
         const p1TimeElapsed = p1Answer ? (p1Answer.time - roundStartTime) / 1000 : Infinity; 
         const p2TimeElapsed = p2Answer ? (p2Answer.time - roundStartTime) / 1000 : Infinity;
         
@@ -272,38 +272,46 @@ io.on('connection', (socket) => {
         const match = activeMatches[data.matchId];
         if (!match) return;
 
-        // **CRITICAL: Record the time the server RECEIVED the answer (P1 or P2 time)**
         const receiveTime = Date.now(); 
-        
         const answerData = {
             answer: data.answer,
-            time: receiveTime // Use the reliable server-side timestamp for official scorekeeping
+            time: receiveTime 
         };
 
         const isP1 = socket.id === match.p1Id;
         const timeElapsed = (receiveTime - match.roundStartTime) / 1000;
+        
+        // Identify the Opponent ID
+        const opponentId = isP1 ? match.p2Id : match.p1Id;
+        
+        // Track whether the answer was successfully recorded this time
+        let answerRecorded = false;
 
-        // Store the answer based on which player submitted it
         if (isP1 && !match.roundAnswers.p1) {
             match.roundAnswers.p1 = answerData;
-            
-            // Emit immediate feedback to the submitting player
-            socket.emit('answer_registered', {
-                serverReceiveTime: receiveTime,
-                timeElapsed: timeElapsed // Send the already calculated elapsed time
-            });
-
+            answerRecorded = true;
         } else if (!isP1 && !match.roundAnswers.p2) {
             match.roundAnswers.p2 = answerData;
+            answerRecorded = true;
+        }
+
+        // Only emit feedback if the answer was recorded for the first time
+        if (answerRecorded) {
             
-            // Emit immediate feedback to the submitting player
+            // 1. Emit to the current player (Self)
             socket.emit('answer_registered', {
-                serverReceiveTime: receiveTime,
-                timeElapsed: timeElapsed // Send the already calculated elapsed time
+                timeElapsed: timeElapsed,
+                isOpponent: false // This tells the client to update the 'YOU' time
+            });
+            
+            // 2. Emit to the opponent
+            io.to(opponentId).emit('answer_registered', {
+                timeElapsed: timeElapsed,
+                isOpponent: true // This tells the client to update the 'OPPONENT' time
             });
         }
         
-        // Check if both players have submitted
+        // Check if both players have submitted to end the round
         if (match.roundAnswers.p1 && match.roundAnswers.p2) {
             calculateScores(data.matchId);
         }
