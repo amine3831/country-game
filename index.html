@@ -207,34 +207,21 @@
             font-weight: normal;
             margin: 2vh 0 1vh 0;
         }
-
+        
+        /* 8% H + 0% M = 8vh (Scoreboard, sits flush at the bottom) */
         .score-board { 
             height: 8vh; 
-            background-color: transparent; 
             display: flex; 
             width: 90%;
             max-width: 450px; 
             margin: 0 auto; 
             padding: 1vh 0; 
             
-            border: 2px solid #333; 
+            border: 2px solid var(--text-color); /* Dark border around the whole box */
             border-radius: 8px;
             overflow: hidden; 
+            background-color: white; /* White background for the round board */
         }
-        
-        /* New Scoreboard style for Game Over */
-        .score-board.final-board {
-            /* Reset score board dimensions for the final view */
-            width: 80%;
-            max-width: 350px;
-            height: 20vh;
-            border: 2px solid var(--text-color);
-            border-radius: 0; /* Remove border radius */
-            padding: 0;
-            margin-bottom: 2vh; 
-            background-color: white; /* White background for the final board container */
-        }
-
 
         /* Scoreboard content styling */
         .score-board span {
@@ -245,32 +232,49 @@
             flex-direction: column;
             justify-content: center;
             align-items: center;
+            color: var(--text-color); /* Default text color */
+            background-color: transparent;
         }
         
         /* Round Scoreboard default styles (smaller) */
-        .score-board:not(.final-board) #player-score { font-size: 4.5vw; }
-        .score-board:not(.final-board) #opponent-score { font-size: 4.5vw; }
+        .score-board:not(.final-board) #player-score { 
+            font-size: 4.5vw; 
+            color: var(--primary-color); /* You: Blue score text */
+        }
+        .score-board:not(.final-board) #opponent-score { 
+            font-size: 4.5vw; 
+            color: var(--player-2-color); /* Opponent: Red score text */
+        }
         .score-board:not(.final-board) .label {
             font-size: 3vw;
             font-weight: normal;
+            margin-top: -0.5vh;
         }
 
         #player-score-container { 
-            color: white;
-            background-color: var(--primary-color); 
-            border-right: 2px solid #333; 
+            border-right: 1px solid var(--text-color); /* Thin divider */
         }
         
         #opponent-score-container { 
-            color: var(--text-color);
+            /* No special styles needed */
+        }
+
+        /* FINAL SCOREBOARD SPECIFIC STYLES (Kept for Game Over screen) */
+        .score-board.final-board {
+            width: 80%;
+            max-width: 350px;
+            height: 20vh;
+            border: 2px solid var(--text-color);
+            border-radius: 0; 
+            padding: 0;
+            margin-bottom: 2vh; 
             background-color: white; 
         }
 
-        /* FINAL SCOREBOARD SPECIFIC STYLES */
         .score-board.final-board #player-score-container,
         .score-board.final-board #opponent-score-container {
-            background-color: white; /* Remove colored background from score halves */
-            border-right: 1px solid var(--text-color); /* Lighter divider */
+            background-color: white; 
+            border-right: 1px solid var(--text-color); 
             padding: 1vh 0;
         }
 
@@ -288,13 +292,13 @@
 
         .score-board.final-board #player-score,
         .score-board.final-board #opponent-score {
-            font-size: 12vw; /* Large score number */
+            font-size: 12vw; 
             font-weight: 800;
             line-height: 1;
         }
 
         .score-board.final-board .label {
-            display: none; /* Hide the default "YOU" and "OPPONENT" labels */
+            display: none;
         }
         
         /* Player color blocks */
@@ -368,6 +372,13 @@
     const playerTimeEl = document.getElementById('player-time');
     const opponentTimeEl = document.getElementById('opponent-time');
     const scoreboardContainerEl = document.getElementById('scoreboard-container');
+    
+    // Attempt to remove final score message if it exists from previous load (for development)
+    const existingFinalMessage = document.getElementById('final-score-message');
+    if (existingFinalMessage) {
+        existingFinalMessage.remove();
+    }
+
 
     // --- VISUAL/STATE MANAGEMENT ---
 
@@ -381,6 +392,12 @@
         
         // Ensure the scoreboard is in round mode initially
         scoreboardContainerEl.classList.remove('final-board');
+        
+        // Remove final score title if it exists
+        const finalMessage = document.getElementById('final-score-message');
+        if (finalMessage) {
+            finalMessage.remove();
+        }
         
         // Hide/Show elements based on stage
         const titleEl = document.querySelector('h1');
@@ -439,7 +456,20 @@
         isAnswered = false;
         resetUI(true); // Show quiz elements
         
-        // Client still tracks this, though the server is the source of truth for time
+        // Restore round scoreboard content (needed if the previous game ended)
+        document.getElementById('player-score-container').innerHTML = `
+            <span id="player-score">${playerScoreEl.textContent}</span>
+            <span class="label">YOU</span>
+        `;
+        document.getElementById('opponent-score-container').innerHTML = `
+            <span id="opponent-score">${opponentScoreEl.textContent}</span>
+            <span class="label">OPPONENT</span>
+        `;
+        
+        // Re-assign element references after innerHTML changes
+        playerScoreEl = document.getElementById('player-score');
+        opponentScoreEl = document.getElementById('opponent-score');
+        
         roundStartTime = Date.now(); 
         
         statusEl.textContent = 'Go!';
@@ -580,7 +610,7 @@
             oppPlayerName = 'PLAYER 1';
         }
 
-        // --- Update Scoreboard HTML Structure to Match Design ---
+        // --- Update Scoreboard HTML Structure to Match Final Design ---
         const p1ScoreContainer = document.getElementById('player-score-container');
         const p2ScoreContainer = document.getElementById('opponent-score-container');
         
