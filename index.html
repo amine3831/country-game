@@ -35,7 +35,6 @@
             height: 100vh; 
             max-width: none; 
             margin: 0; 
-            /* Switched to block layout to allow explicit VH control */
             padding: 0 3vw; 
             display: block; 
             box-sizing: border-box; 
@@ -63,8 +62,7 @@
             left: 50%;          
             transform: translateX(-50%); 
             z-index: 10; 
-            height: 7vh; /* Allocate fixed height */
-
+            height: 7vh; 
             display: flex; 
             width: 90%;
             max-width: 450px; 
@@ -80,7 +78,7 @@
         /* Styling for the individual score segments */
         .score-board span {
             flex-grow: 1;
-            padding: 0; /* Padding controlled by fixed height */
+            padding: 0; 
             font-weight: bold;
             font-size: 4.5vw; 
             
@@ -107,7 +105,6 @@
         /* === 3. GAME AREA & ELEMENTS (85vh Total Space) === */
         
         #game-area {
-            /* 100vh - 8vh (H1) - 7vh (Scoreboard) = 85vh total game space */
             height: 85vh; 
             display: flex; 
             flex-direction: column;
@@ -115,7 +112,7 @@
             justify-content: flex-start;
             width: 100%;
             padding: 0;
-            overflow: hidden; /* Ensure content strictly stays within this space */
+            overflow: hidden; 
         }
         
         /* --- Status, Round, Message, Time (7vh each) --- */
@@ -150,17 +147,18 @@
 
         /* 20% for the Flag */
         .flag-image { 
-            height: 20vh; /* Fixed height of 20% */
+            height: 20vh; 
             width: 90%; 
             max-width: 450px; 
-            object-fit: contain; /* Scales the image within the fixed height */
+            /* ADJUSTMENT 1: Use 'cover' to eliminate white space within the border */
+            object-fit: cover; 
             border: 3px solid var(--primary-color); 
             border-radius: 8px;
             box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            margin: 0; /* Removed margin */
+            margin: 0; 
         }
         
-        /* --- Options Container (4 x 6vh + margins = ~26vh) --- */
+        /* --- Options Container (~26vh) --- */
         
         #options-container {
             display: flex;
@@ -168,19 +166,19 @@
             justify-content: center;
             width: 100%;
             max-width: 550px; 
-            height: 26vh; /* 4 * 6vh + margins */
+            height: 26vh; 
             margin: 0;
         }
         
         /* 6% for each choice */
         .option-button { 
-            height: 6vh; /* Fixed height of 6% */
+            height: 6vh; 
             display: flex;
             justify-content: center;
             align-items: center;
             
             padding: 0; 
-            margin: 0.5vh; /* Small vertical margin for separation */
+            margin: 0.5vh; 
             
             cursor: pointer; 
             background-color: var(--primary-color);
@@ -189,7 +187,7 @@
             border-radius: 8px;
             font-size: 4.5vw; 
             transition: background-color 0.3s, transform 0.1s;
-            width: calc(50% - 1vh); /* Adjusted width to account for small 0.5vh margins on each side (2*0.5vh = 1vh) */
+            width: calc(50% - 1vh); 
             box-shadow: 0 3px var(--primary-color);
         }
         .option-button:hover:not(:disabled) {
@@ -197,12 +195,26 @@
             transform: translateY(-2px);
             box-shadow: 0 5px #303f9f;
         }
+        /* Disabled buttons turn grey unless selected/correct/incorrect */
         .option-button:disabled {
-            background-color: #ccc;
+            background-color: #ccc; 
             cursor: default;
             box-shadow: none;
         }
-        /* ... other button state styles ... */
+        .option-button.correct {
+            background-color: var(--success-color) !important;
+            box-shadow: 0 3px var(--success-color) !important;
+        }
+        .option-button.incorrect {
+            background-color: var(--error-color) !important;
+            box-shadow: none !important;
+        }
+        /* ADJUSTMENT 2: Ensure selected button is orange */
+        .option-button.selected {
+            background-color: var(--secondary-color) !important; 
+            box-shadow: 0 0 10px 5px var(--secondary-color) !important;
+        }
+
 
         /* 7% for "Correct Answer..." */
         #result-message {
@@ -231,7 +243,6 @@
             padding: 0;
         }
         
-        /* NEW CLASS: For centering the status element when waiting for a match (must still be absolute) */
         .centered-status {
             position: absolute; 
             top: 50%;          
@@ -244,7 +255,7 @@
         /* Media query for smaller screens: tighter fit */
         @media (max-width: 768px) {
             .option-button {
-                width: calc(100% - 1vh); /* Buttons go full width */
+                width: calc(100% - 1vh); 
             }
         }
     </style>
@@ -310,7 +321,6 @@
         statusEl.textContent = '⏳ Waiting for an opponent to join...';
         gameAreaEl.style.display = 'none';
         
-        // Apply centering class
         statusEl.classList.add('centered-status'); 
     });
 
@@ -320,7 +330,6 @@
         isP1 = data.isP1;
         gameAreaEl.style.display = 'flex'; 
         
-        // Remove centering class
         statusEl.classList.remove('centered-status');
     });
 
@@ -412,7 +421,6 @@
         }
         statusEl.textContent = finalMessage;
         
-        // Ensure it stays centered at the end of the game
         statusEl.classList.add('centered-status');
     });
 
@@ -422,7 +430,6 @@
         statusEl.style.backgroundColor = getCssVar('--error-color');
         statusEl.style.color = 'white';
         
-        // Ensure it stays centered
         statusEl.classList.add('centered-status');
     });
 
@@ -431,9 +438,12 @@
     function submitAnswer(answer, buttonPressed) {
         if (isAnswered) return;
         isAnswered = true;
-        enableButtons(false); 
-
+        
+        // When answered, only the pressed button is visually updated
         buttonPressed.classList.add('selected');
+
+        // Disable all buttons immediately after selection
+        enableButtons(false); 
 
         socket.emit('submit_answer', {
             matchId: currentMatchId,
@@ -445,10 +455,16 @@
         Array.from(optionsContainerEl.children).forEach(btn => {
             btn.disabled = !enabled;
             if (enabled) {
+                 // Enabled buttons: Ensure they are blue and clear of state classes
                  btn.classList.remove('selected', 'correct', 'incorrect');
-                 btn.style.backgroundColor = getCssVar('--primary-color');
+                 btn.style.backgroundColor = getCssVar('--primary-color'); 
             } else {
-                 btn.style.backgroundColor = '#ccc'; 
+                 // Disabled buttons (after answer submission):
+                 // If the button is NOT the selected one, set it to grey. 
+                 // The selected button's orange color is maintained by the .selected class via CSS priority.
+                 if (!btn.classList.contains('selected') && !btn.classList.contains('correct') && !btn.classList.contains('incorrect')) {
+                    btn.style.backgroundColor = '#ccc'; 
+                 }
             }
         });
     }
