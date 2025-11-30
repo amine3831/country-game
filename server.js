@@ -1,34 +1,32 @@
-// --- 1. SETUP & CONFIGURATION ---
-const express = require('express');
-const http = require('http');
-const path = require('path');
-const { Server } = require('socket.io');
+// --- MODULE IMPORTS ---
+// Assume your Node.js environment uses 'require' to load local modules.
+// 1. Load the Master Confusion Map (your new file)
+const CONFUSION_GROUPS_MAP = require('./groups.js'); 
 
-const app = express();
-const server = http.createServer(app);
-// Initialize Socket.IO with the HTTP server
-const io = new Server(server);
+// 2. Load the main list of all countries/flags
+// NOTE: Assuming flag_data.json is an array of country objects, and we extract a simple array of all names.
+const FLAG_DATA_FULL = require('./flag_data.json');
+const ALL_COUNTRIES_NAMES = FLAG_DATA_FULL.map(flag => flag.name); // Create simple array of all country names
 
-const PORT = 3000;
-const TOTAL_ROUNDS = 3; // Number of guaranteed rounds before sudden death
 
-// Game state variables
-let waitingPlayer = null; // Stores the socket of a player waiting for a match
-const activeMatches = {};  // Stores active match objects, keyed by matchId
-
-// Serve the static index.html file
-app.get('/', (req, res) => {
-    // Note: Ensure your 'index.html' is in the same directory as server.js
-    res.sendFile(path.join(__dirname, 'index.html'));
-});
-
-// --- 2. UTILITY FUNCTIONS ---
+// --- HELPER FUNCTIONS ---
 
 /**
- * Shuffles an array in place (Fisher-Yates algorithm).
- * @param {Array} array - The array to shuffle.
+ * Helper: Picks a random unique item from an array without modification.
+ * @param {Array} arr - The array to pick from.
+ * @returns {any} A random element from the array.
  */
-function shuffleArray(array) {
+function getRandomItem(arr) {
+    return arr[Math.floor(Math.random() * arr.length)];
+}
+
+/**
+ * Helper: Randomly shuffles an array (Fisher-Yates algorithm).
+ * @param {Array} arr - The array to shuffle.
+ * @returns {Array} The shuffled array.
+ */
+function shuffleArray(arr) {
+    const array = [...arr]; // Create a copy to avoid modifying original array
     for (let i = array.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
         [array[i], array[j]] = [array[j], array[i]];
@@ -37,368 +35,95 @@ function shuffleArray(array) {
 }
 
 /**
- * Creates a unique match ID.
- * @returns {string} A unique 6-character ID.
+ * Helper: Selects 'count' unique random items from an array, excluding items in the 'exclude' list.
+ * @param {Array} sourceArr - Array to select from (the Distractor Pool).
+ * @param {number} count - Number of items to select.
+ * @param {Array} excludeArr - Items to exclude from the selection.
+ * @returns {Array} Array of selected unique items.
  */
-function generateMatchId() {
-    return Math.random().toString(36).substring(2, 8);
-}
-
-/**
- * Gets N random distractor countries that are NOT the correct country.
- * @param {string} correctCountryName - The country name to exclude.
- * @param {number} count - The number of distractor countries to return.
- * @returns {Array<string>} An array of country names.
- */
-function getDistractorCountries(correctCountryName, count) {
-    // Filter out the correct country
-    const potentialDistractors = flagData
-        .filter(flag => flag.country !== correctCountryName)
-        .map(flag => flag.country);
-
-    // Shuffle and slice the required number of distractors
-    shuffleArray(potentialDistractors);
-    return potentialDistractors.slice(0, count);
+function selectUniqueRandom(sourceArr, count, excludeArr = []) {
+    const selectionPool = sourceArr.filter(item => !excludeArr.includes(item));
+    const selected = [];
+    
+    // Only proceed if there are items to select from
+    if (selectionPool.length === 0) return selected;
+    
+    while (selected.length < count && selectionPool.length > 0) {
+        const randomIndex = Math.floor(Math.random() * selectionPool.length);
+        const item = selectionPool.splice(randomIndex, 1)[0]; // Remove item to ensure uniqueness
+        selected.push(item);
+    }
+    return selected;
 }
 
 
-// --- 3. MATCH & GAME MANAGEMENT ---
+// --- MAIN LOGIC FUNCTION ---
 
 /**
- * Initializes a new match and its state.
+ * Generates quiz options (4 total) based on the custom Confusion Groups Map.
+ * @param {string} correctCountry - The name of the flag currently being displayed.
+ * @returns {Array<string>} An array of four shuffled country names (options).
  */
-function createNewMatch(p1Id, p2Id, matchId) {
-    // Get a shuffled list of ALL questions to ensure no repeats in a match
-    const shuffledQuestions = shuffleArray([...flagData]); 
+function generateQuizOptions(correctCountry) {
+    let distractors = [];
+    let groupCountries = null;
+    let groupKey = null;
 
-    activeMatches[matchId] = {
-        id: matchId,
-        p1Id: p1Id, // The player who connected first
-        p2Id: p2Id, // The player who connected second
-        p1Score: 0,
-        p2Score: 0,
-        currentRound: 0,
-        matchQuestions: shuffledQuestions, // All flags for the match
-        roundAnswers: { p1: null, p2: null }, // Temp storage for current round answers
-        roundStartTime: 0 
-    };
-
-    io.to(p1Id).emit('match_found', { matchId, isP1: true });
-    io.to(p2Id).emit('match_found', { matchId, isP1: false });
-    
-    console.log(`Match ${matchId} created between ${p1Id} and ${p2Id}.`);
-    
-    // Start the game immediately
-    startGameRound(matchId, 1);
-}
-
-/**
- * Starts a new quiz round.
- */
-function startGameRound(matchId, roundNumber) {
-    const match = activeMatches[matchId];
-    if (!match) return;
-
-    // Reset round state
-    match.currentRound = roundNumber;
-    match.roundAnswers = { p1: null, p2: null }; 
-    
-    // Record the Server's Round Start Time
-    match.roundStartTime = Date.now(); 
-
-    // Get the current question (flag)
-    const questionIndex = roundNumber - 1;
-    const currentQuestion = match.matchQuestions[questionIndex];
-    
-    if (!currentQuestion) {
-        // Handle case where we run out of questions (draw or final winner)
-        return calculateScores(matchId, true); 
+    // 1. Find the Group for the correct country
+    for (const key in CONFUSION_GROUPS_MAP) {
+        if (CONFUSION_GROUPS_MAP[key].includes(correctCountry)) {
+            groupCountries = CONFUSION_GROUPS_MAP[key];
+            groupKey = key;
+            break;
+        }
     }
 
-    const { country, image } = currentQuestion;
+    // 2. Select Primary Distractors (The High Difficulty Check)
+    if (groupCountries && groupKey !== 'SOLO_FALLBACK_GROUP') {
+        // Find how many distractors we need to fill (3 total)
+        const requiredDistractors = 3; 
 
-    // Generate 3 random incorrect options
-    const distractors = getDistractorCountries(country, 3);
-    
-    // Combine correct and incorrect, then shuffle the options
-    const options = shuffleArray([country, ...distractors]);
+        // Get members from the group, excluding the correct country
+        const pool = groupCountries.filter(name => name !== correctCountry);
 
-    // Send question data to both clients
-    io.to(matchId).emit('new_round', {
-        round: roundNumber,
-        image: image,
-        options: options
-    });
-
-    console.log(`Match ${matchId}: Starting Round ${roundNumber}. Correct answer: ${country}`);
-}
-
-/**
- * Calculates scores and determines the next action (next round or game over).
- * @param {string} matchId - The ID of the match.
- * @param {boolean} isFinalCheck - If true, it forces a score check (e.g., when questions run out).
- */
-function calculateScores(matchId, isFinalCheck = false) {
-    const match = activeMatches[matchId];
-    if (!match) return;
-
-    const { p1Id, p2Id, roundAnswers, matchQuestions, currentRound, roundStartTime } = match;
-    const currentQuestion = matchQuestions[currentRound - 1];
-    const correctAnswer = currentQuestion.country;
-
-    const p1Answer = roundAnswers.p1;
-    const p2Answer = roundAnswers.p2;
-    
-    // Check if both players have answered (or if it's the final check)
-    if ((p1Answer && p2Answer) || isFinalCheck) {
+        // Select up to 3 similar flags from the pool
+        const similarFlags = selectUniqueRandom(pool, requiredDistractors);
+        distractors.push(...similarFlags);
         
-        let winnerId = null;
-        let p1Correct = p1Answer && p1Answer.answer === correctAnswer;
-        let p2Correct = p2Answer && p2Answer.answer === correctAnswer;
-
-        if (p1Correct && p2Correct) {
-            // Both correct: Winner is the fastest (lower timestamp)
-            if (p1Answer.time < p2Answer.time) {
-                match.p1Score++;
-                winnerId = p1Id;
-            } else if (p2Answer.time < p1Answer.time) {
-                match.p2Score++;
-                winnerId = p2Id;
-            }
-        } else if (p1Correct) {
-            // P1 correct, P2 incorrect/missed
-            match.p1Score++;
-            winnerId = p1Id;
-        } else if (p2Correct) {
-            // P2 correct, P1 incorrect/missed
-            match.p2Score++;
-            winnerId = p2Id;
-        }
-
-        // Calculate elapsed time using server's roundStartTime
-        const p1TimeElapsed = p1Answer ? (p1Answer.time - roundStartTime) / 1000 : Infinity; 
-        const p2TimeElapsed = p2Answer ? (p2Answer.time - roundStartTime) / 1000 : Infinity;
-        
-        // --- Broadcast Round Results ---
-        io.to(matchId).emit('round_results', {
-            correctAnswer: correctAnswer,
-            p1Score: match.p1Score,
-            p2Score: match.p2Score,
-            // Send the calculated elapsed time
-            p1Time: p1TimeElapsed, 
-            p2Time: p2TimeElapsed,
-            winnerId: winnerId
-        });
-        
-        console.log(`Match ${matchId} Round ${currentRound} result: P1(${match.p1Score}) vs P2(${match.p2Score}). Winner: ${winnerId ? winnerId : 'None'}`);
-
-        // --- Determine Next Game State ---
-        
-        let nextRound = currentRound + 1;
-        
-        // 1. Check for SUDDEN DEATH WIN after round 3
-        if (currentRound >= TOTAL_ROUNDS) {
-            if (match.p1Score !== match.p2Score) {
-                // Scores are unequal after initial rounds or in tiebreaker
-                return endGame(matchId);
-            }
-            // If scores are equal, continue to next sudden death tiebreaker round
-        }
-
-        // 2. Check if we've run out of questions
-        if (nextRound > matchQuestions.length) {
-            return endGame(matchId);
-        }
-
-        // 3. Continue to the next round after a 3-second delay
-        setTimeout(() => {
-            startGameRound(matchId, nextRound);
-        }, 3000); 
-
-    }
-}
-
-/**
- * Ends the match and broadcasts the final result.
- */
-function endGame(matchId) {
-    const match = activeMatches[matchId];
-    if (!match) return;
-
-    let winnerId = null;
-    if (match.p1Score > match.p2Score) {
-        winnerId = match.p1Id;
-    } else if (match.p2Score > match.p1Score) {
-        winnerId = match.p2Id;
+        // If the group was small (e.g., only 3 members total), we only got 2 similar flags.
+        // We will fill the rest with a truly random outlier in the next step.
     }
 
-    io.to(matchId).emit('game_over', {
-        winner: winnerId,
-        p1Score: match.p1Score,
-        p2Score: match.p2Score
-    });
+    // 3. Select the Random Outlier (Fills remaining slots if needed)
     
-    console.log(`Match ${matchId} ended. Winner: ${winnerId || 'Draw'}`);
+    // Calculate how many more options are needed to reach 3 total distractors
+    const remainingSlots = 3 - distractors.length; 
 
-    // Clean up
-    io.sockets.sockets.get(match.p1Id)?.leave(matchId);
-    io.sockets.sockets.get(match.p2Id)?.leave(matchId);
-    delete activeMatches[matchId];
+    if (remainingSlots > 0) {
+        // Collect all names already chosen (distractors + correct answer)
+        const chosenNames = [correctCountry, ...distractors];
+
+        // Select the remaining needed options from the entire country list
+        const randomOutliers = selectUniqueRandom(ALL_COUNTRIES_NAMES, remainingSlots, chosenNames);
+        distractors.push(...randomOutliers);
+    }
+    
+    // 4. Assemble and Shuffle Final Options
+    const finalOptions = [correctCountry, ...distractors];
+    
+    // NOTE: This array should always have 4 unique elements now.
+    return shuffleArray(finalOptions);
 }
 
-// --- 4. SOCKET.IO EVENT HANDLERS ---
+// --- EXPORT THE FUNCTION (for use by your main server code) ---
+module.exports = {
+    generateQuizOptions
+};
 
-io.on('connection', (socket) => {
-    console.log(`A user connected: ${socket.id}`);
-    
-    // --- Matchmaking Logic ---
-    if (waitingPlayer && waitingPlayer.id !== socket.id) {
-        const matchId = generateMatchId();
-        
-        // Both players join the unique match room
-        waitingPlayer.join(matchId);
-        socket.join(matchId);
-
-        createNewMatch(waitingPlayer.id, socket.id, matchId);
-        waitingPlayer = null; // Clear the waiting player
-        
-    } else {
-        waitingPlayer = socket;
-        socket.emit('waiting_for_opponent');
-    }
-
-    // --- Player Answer Submission ---
-    socket.on('submit_answer', (data) => {
-        const match = activeMatches[data.matchId];
-        if (!match) return;
-
-        const receiveTime = Date.now(); 
-        const answerData = {
-            answer: data.answer,
-            time: receiveTime 
-        };
-
-        const isP1 = socket.id === match.p1Id;
-        const timeElapsed = (receiveTime - match.roundStartTime) / 1000;
-        
-        // Identify the Opponent ID
-        const opponentId = isP1 ? match.p2Id : match.p1Id;
-        
-        // Track whether the answer was successfully recorded this time
-        let answerRecorded = false;
-
-        if (isP1 && !match.roundAnswers.p1) {
-            match.roundAnswers.p1 = answerData;
-            answerRecorded = true;
-        } else if (!isP1 && !match.roundAnswers.p2) {
-            match.roundAnswers.p2 = answerData;
-            answerRecorded = true;
-        }
-
-        // Only emit feedback if the answer was recorded for the first time
-        if (answerRecorded) {
-            
-            // 1. Emit to the current player (Self)
-            socket.emit('answer_registered', {
-                timeElapsed: timeElapsed,
-                isOpponent: false // This tells the client to update the 'YOU' time
-            });
-            
-            // 2. Emit to the opponent
-            io.to(opponentId).emit('answer_registered', {
-                timeElapsed: timeElapsed,
-                isOpponent: true // This tells the client to update the 'OPPONENT' time
-            });
-        }
-        
-        // Check if both players have submitted to end the round
-        if (match.roundAnswers.p1 && match.roundAnswers.p2) {
-            calculateScores(data.matchId);
-        }
-    });
-
-    // --- Disconnect Handling ---
-    socket.on('disconnect', () => {
-        console.log(`User disconnected: ${socket.id}`);
-
-        if (waitingPlayer && waitingPlayer.id === socket.id) {
-            waitingPlayer = null; // Remove from waiting list
-        } else {
-            // Find which match the disconnected player was in
-            for (const matchId in activeMatches) {
-                const match = activeMatches[matchId];
-                if (match.p1Id === socket.id || match.p2Id === socket.id) {
-                    
-                    const opponentId = (match.p1Id === socket.id) ? match.p2Id : match.p1Id;
-                    
-                    // Notify the remaining player
-                    io.to(opponentId).emit('opponent_disconnected', 'Your opponent disconnected! The game has ended.');
-                    
-                    // Clean up the match
-                    delete activeMatches[matchId];
-                    break;
-                }
-            }
-        }
-    });
-});
-
-// --- 5. START SERVER ---
-server.listen(PORT, () => {
-    console.log(`Server running at http://localhost:${PORT}/`);
-});
-
-
-// --- 6. FLAG DATASET (50 Flags) ---
-const flagData = [
-    { country: "Albania", image: "https://flagcdn.com/al.svg" },
-    { country: "Algeria", image: "https://flagcdn.com/dz.svg" },
-    { country: "Argentina", image: "https://flagcdn.com/ar.svg" },
-    { country: "Australia", image: "https://flagcdn.com/au.svg" },
-    { country: "Austria", image: "https://flagcdn.com/at.svg" },
-    { country: "Bangladesh", image: "https://flagcdn.com/bd.svg" },
-    { country: "Belgium", image: "https://flagcdn.com/be.svg" },
-    { country: "Brazil", image: "https://flagcdn.com/br.svg" },
-    { country: "Canada", image: "https://flagcdn.com/ca.svg" },
-    { country: "Chile", image: "https://flagcdn.com/cl.svg" },
-    { country: "China", image: "https://flagcdn.com/cn.svg" },
-    { country: "Colombia", image: "https://flagcdn.com/co.svg" },
-    { country: "Cuba", image: "https://flagcdn.com/cu.svg" },
-    { country: "Denmark", image: "https://flagcdn.com/dk.svg" },
-    { country: "Egypt", image: "https://flagcdn.com/eg.svg" },
-    { country: "Finland", image: "https://flagcdn.com/fi.svg" },
-    { country: "France", image: "https://flagcdn.com/fr.svg" },
-    { country: "Germany", image: "https://flagcdn.com/de.svg" },
-    { country: "Greece", image: "https://flagcdn.com/gr.svg" },
-    { country: "India", image: "https://flagcdn.com/in.svg" },
-    { country: "Indonesia", image: "https://flagcdn.com/id.svg" },
-    { country: "Ireland", image: "https://flagcdn.com/ie.svg" },
-    { country: "Israel", image: "https://flagcdn.com/il.svg" },
-    { country: "Italy", image: "https://flagcdn.com/it.svg" },
-    { country: "Japan", image: "https://flagcdn.com/jp.svg" },
-    { country: "Mexico", image: "https://flagcdn.com/mx.svg" },
-    { country: "Morocco", image: "https://flagcdn.com/ma.svg" },
-    { country: "Netherlands", image: "https://flagcdn.com/nl.svg" },
-    { country: "New Zealand", image: "https://flagcdn.com/nz.svg" },
-    { country: "Norway", image: "https://flagcdn.com/no.svg" },
-    { country: "Pakistan", image: "https://flagcdn.com/pk.svg" },
-    { country: "Peru", image: "https://flagcdn.com/pe.svg" },
-    { country: "Philippines", image: "https://flagcdn.com/ph.svg" },
-    { country: "Poland", image: "https://flagcdn.com/pl.svg" },
-    { country: "Portugal", image: "https://flagcdn.com/pt.svg" },
-    { country: "Romania", image: "https://flagcdn.com/ro.svg" },
-    { country: "Russia", image: "https://flagcdn.com/ru.svg" },
-    { country: "Saudi Arabia", image: "https://flagcdn.com/sa.svg" },
-    { country: "South Africa", image: "https://flagcdn.com/za.svg" },
-    { country: "South Korea", image: "https://flagcdn.com/kr.svg" },
-    { country: "Spain", image: "https://flagcdn.com/es.svg" },
-    { country: "Sweden", image: "https://flagcdn.com/se.svg" },
-    { country: "Switzerland", image: "https://flagcdn.com/ch.svg" },
-    { country: "Thailand", image: "https://flagcdn.com/th.svg" },
-    { country: "Turkey", image: "https://flagcdn.com/tr.svg" },
-    { country: "Ukraine", image: "https://flagcdn.com/ua.svg" },
-    { country: "United Kingdom", image: "https://flagcdn.com/gb.svg" },
-    { country: "United States", image: "https://flagcdn.com/us.svg" },
-    { country: "Vietnam", image: "https://flagcdn.com/vn.svg" },
-    { country: "Zimbabwe", image: "https://flagcdn.com/zw.svg" }
-];
+// --- EXAMPLE USAGE (For testing purposes in your server.js) ---
+/*
+const testFlag = 'Iraq';
+const options = generateQuizOptions(testFlag);
+console.log(`Correct Answer: ${testFlag}`);
+console.log(`Quiz Options (Shuffled): ${options.join(', ')}`);
+*/
