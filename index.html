@@ -36,9 +36,8 @@
         }
         
         #game-container { 
-            width: 80%; 
-            height: 100vh; /* Exactly 100vh */
-            /* max-width: 550px; <-- REMOVED AS REQUESTED */
+            width: 100%; /* FIX 1: Set to 100% so it doesn't limit the content */
+            height: 100vh; 
             margin: 0 auto; 
             padding: 0; 
             display: flex; 
@@ -93,17 +92,14 @@
         /* 20% H + 1% M = 21vh (Flag Image) */
         .flag-image { 
             height: 20vh; 
-            /* *** ADJUSTED FOR 80% WIDTH & 10% MARGIN LEFT/RIGHT *** */
-            width: 80%; /* Takes 80% of the screen width */
-            margin: 0 auto; /* Centers the 80% width element, creating 10% left/right margin */
-            /* *** END ADJUSTMENT *** */
-            
-          /*  max-width: 450px; *//* Kept for potentially preventing huge stretch on very wide screens */
+            width: 80%; /* Now 80% of screen width */
+            margin: 0 auto; /* Centers the 80% width element */
+            /* max-width: 450px; <--- FIX 3: Removed this line */
             object-fit: cover; 
             border: 3px solid var(--primary-color); 
             border-radius: 8px;
             
-            margin-bottom: 1vh; /* Vertical margin remains 1vh */
+            margin-bottom: 1vh; 
             background-color: #f0f0f0; 
         }
         
@@ -112,10 +108,10 @@
             display: flex;
             flex-wrap: wrap;
             justify-content: center;
-            width: 100%;
-            max-width: 550px; 
+            width: 80%; /* FIX 2: Set width to 80% to match the flag */
+            max-width: none; /* FIX 2: Removed max-width limit */
             height: auto; 
-            margin: 0;
+            margin: 0 auto; /* FIX 2: Center the 80% width block */
             padding: 0 3vw; 
         }
         
@@ -168,7 +164,7 @@
 
         /* 10% H + 1% M = 11vh (Result Message) */
         #result-message {
-            height: 10vh; /* Final requested height */
+            height: 10vh; 
             display: flex;
             justify-content: center;
             align-items: center;
@@ -176,7 +172,7 @@
             font-size: 5vw; 
             width: 100%;
             margin: 0;
-            margin-bottom: 1vh; /* 1% margin below */
+            margin-bottom: 1vh; 
             padding: 0 3vw;
             background-color: transparent; 
         }
@@ -192,20 +188,20 @@
             width: 100%;
             font-weight: bold;
             margin: 0;
-            margin-bottom: 1vh; /* Margin preserved as requested */
+            margin-bottom: 1vh; 
             padding: 0 3vw;
             background-color: transparent; 
         }
 
         /* 8% H + 0% M = 8vh (Scoreboard, sits flush at the bottom) */
         .score-board { 
-            height: 8vh; /* REQUESTED 8% height */
-            background-color: #e0e0e0; /* Light grey for scoreboard */
+            height: 8vh; 
+            background-color: #e0e0e0; 
             display: flex; 
             width: 90%;
             max-width: 450px; 
             margin: 0 auto; 
-            margin-bottom: 0vh; /* Final element, must be 0vh to fit 100vh total */
+            margin-bottom: 0vh; 
             padding: 0;
             
             border: 2px solid #333; 
