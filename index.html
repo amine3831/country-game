@@ -45,6 +45,12 @@
             background-color: transparent; 
         }
 
+        /* NEW: Centers content when only the status message is visible */
+        #game-container.centered-status {
+            justify-content: center;
+            align-items: center; 
+        }
+
         /* === 2. PRECISE 100vh FLOW LAYOUT === */
         
         /* 8% H + 1% M = 9vh (Title) */
@@ -92,9 +98,10 @@
         /* 20% H + 1% M = 21vh (Flag Image) */
         .flag-image { 
             height: 20vh; 
-            width: 80%; /* Now 80% of screen width */
-            margin: 0 auto; /* Centers the 80% width element */
-            object-fit: contain; /* Use contain to ensure the flag is fully visible */
+            /* FIX: Use 90% width to better match options container */
+            width: 90%; 
+            margin: 0 auto; 
+            object-fit: contain; 
             border: 3px solid var(--primary-color); 
             border-radius: 8px;
             
@@ -107,6 +114,7 @@
             display: flex;
             flex-wrap: wrap;
             justify-content: center;
+            /* Use 90% width for consistency with flag */
             width: 90%; 
             height: auto; 
             margin: 0 auto; 
@@ -130,9 +138,9 @@
             border-radius: 8px;
             font-size: 4.5vw; 
             transition: background-color 0.3s, transform 0.1s;
-            width: calc(50% - 1vh); /* Forces 2 per row, considering the 0.5vh margins on each side */
-            box-shadow: 0 3px #303f9f; /* Darker primary color for shadow */
-            white-space: nowrap; /* Prevent options from wrapping text */
+            width: calc(50% - 1vh); /* Forces 2 per row */
+            box-shadow: 0 3px #303f9f; 
+            white-space: nowrap; 
             overflow: hidden;
             text-overflow: ellipsis;
         }
@@ -150,11 +158,11 @@
         }
         .option-button.correct {
             background-color: var(--success-color) !important;
-            box-shadow: 0 3px #388e3c !important; /* Darker green */
+            box-shadow: 0 3px #388e3c !important; 
         }
         .option-button.incorrect {
             background-color: var(--error-color) !important;
-            opacity: 0.5; /* Fade out incorrect options */
+            opacity: 0.5; 
             box-shadow: none !important;
         }
         .option-button.selected {
@@ -202,7 +210,7 @@
             width: 90%;
             max-width: 450px; 
             margin: 0 auto; 
-            padding: 1vh 0; /* Vertical padding */
+            padding: 1vh 0; 
             
             border: 2px solid #333; 
             border-radius: 8px;
@@ -249,7 +257,7 @@
 
     <div id="round-display"></div>
 
-    <img id="current-flag" class="flag-image" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" alt="Flag to guess">
+    <img id="current-flag" class="flag-image" src="data:image/gif;base64,R0GODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" alt="Flag to guess">
 
     <div id="options-container">
         </div>
@@ -261,7 +269,7 @@
         <span id="opponent-time">OPPONENT: --</span>
     </div>
 
-    <div class="score-board">
+    <div class="score-board" id="scoreboard-container">
         <span id="player-score-container">
             <span id="player-score">0</span>
             <span class="label">YOU</span>
@@ -284,6 +292,7 @@
     let opponentScore = 0;
 
     // --- ELEMENT REFERENCES ---
+    const gameContainerEl = document.getElementById('game-container'); // NEW REFERENCE for centering
     const statusEl = document.getElementById('status');
     const roundDisplayEl = document.getElementById('round-display');
     const flagImageEl = document.getElementById('current-flag');
@@ -293,41 +302,55 @@
     const opponentScoreEl = document.getElementById('opponent-score');
     const playerTimeEl = document.getElementById('player-time');
     const opponentTimeEl = document.getElementById('opponent-time');
+    const scoreboardContainerEl = document.getElementById('scoreboard-container');
 
     // --- VISUAL/STATE MANAGEMENT ---
 
     function resetUI(showRoundDisplay = true) {
         // Clear all dynamic content
         optionsContainerEl.innerHTML = '';
-        flagImageEl.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'; // Blank image placeholder
+        flagImageEl.src = 'data:image/gif;base64,R0GODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'; // Blank image placeholder
         resultMessageEl.textContent = '';
         playerTimeEl.textContent = 'YOU: --';
         opponentTimeEl.textContent = 'OPPONENT: --';
         
         // Hide/Show elements based on stage
+        document.querySelector('h1').style.display = showRoundDisplay ? 'flex' : 'none'; // Hide Title
         roundDisplayEl.style.display = showRoundDisplay ? 'flex' : 'none';
         flagImageEl.style.display = showRoundDisplay ? 'block' : 'none';
         optionsContainerEl.style.display = showRoundDisplay ? 'flex' : 'none';
         resultMessageEl.style.display = showRoundDisplay ? 'flex' : 'none';
         playerTimeEl.parentElement.style.display = showRoundDisplay ? 'flex' : 'none';
+        scoreboardContainerEl.style.display = showRoundDisplay ? 'flex' : 'none'; // Hide scoreboard when waiting
+        
+        // --- CRITICAL ALIGNMENT CHANGE ---
+        if (showRoundDisplay) {
+            // Game is active: Use default top-down flow
+            gameContainerEl.classList.remove('centered-status');
+        } else {
+            // Waiting for opponent: Center the remaining visible element (status)
+            gameContainerEl.classList.add('centered-status');
+        }
     }
     
     // --- SOCKET LISTENERS ---
     
     socket.on('connect', () => {
         statusEl.textContent = '✅ Connected. Searching for an opponent...';
+        statusEl.style.color = getCssVar('--text-color');
         resetUI(false);
     });
 
     socket.on('waiting_for_opponent', () => {
         statusEl.textContent = '⏱️ Searching for opponent...';
+        statusEl.style.color = getCssVar('--text-color');
         resetUI(false);
     });
 
     socket.on('match_found', (data) => {
         currentMatchId = data.matchId;
-        statusEl.textContent = '🤝 Match Found! Starting game...';
-        // scores are already initialized to 0 globally, but we reset UI anyway
+        statusEl.textContent = '🤝 Match Found! Getting ready...';
+        
         myScore = 0;
         opponentScore = 0;
         playerScoreEl.textContent = myScore;
@@ -344,9 +367,16 @@
         resetUI(true); // Show quiz elements
         
         statusEl.textContent = 'Go!';
+        statusEl.style.color = getCssVar('--text-color');
         roundDisplayEl.textContent = `▶️ Round ${data.round}`;
         flagImageEl.src = data.image;
 
+        // Reset button colors
+        optionsContainerEl.querySelectorAll('.option-button').forEach(btn => {
+            btn.classList.remove('correct', 'incorrect', 'selected');
+            btn.disabled = false;
+        });
+        
         // Populate options
         data.options.forEach(optionText => {
             const button = document.createElement('button');
@@ -357,10 +387,10 @@
         });
         
         resultMessageEl.textContent = 'Select the correct country!';
+        resultMessageEl.style.color = getCssVar('--text-color');
     });
 
     socket.on('round_results', (data) => {
-        // Find the button corresponding to the correct answer
         const optionButtons = optionsContainerEl.querySelectorAll('.option-button');
         const myId = socket.id;
         
@@ -368,16 +398,10 @@
         const wonRound = data.winnerId === myId;
         const opponentWon = data.winnerId && data.winnerId !== myId;
         
-        // Update local scores
-        myScore = data.p1Score;
-        opponentScore = data.p2Score;
-
         // Update scoreboard display
         playerScoreEl.textContent = data.p1Score;
         opponentScoreEl.textContent = data.p2Score;
 
-        // --- VISUAL FEEDBACK ---
-        
         // Display times
         playerTimeEl.textContent = `YOU: ${data.p1Time.toFixed(2)}s`;
         opponentTimeEl.textContent = `OPPONENT: ${data.p2Time.toFixed(2)}s`;
@@ -401,7 +425,7 @@
             resultMessageEl.textContent = '❌ Opponent scored this round!';
             resultMessageEl.style.color = getCssVar('--error-color');
         } else {
-            resultMessageEl.textContent = '🤷 Neither correct or a draw in speed.';
+            resultMessageEl.textContent = `🤷 Correct answer was ${data.correctAnswer}.`;
             resultMessageEl.style.color = getCssVar('--text-color');
         }
     });
@@ -430,6 +454,7 @@
         // Display final scoreboard
         playerScoreEl.textContent = data.p1Score;
         opponentScoreEl.textContent = data.p2Score;
+        scoreboardContainerEl.style.display = 'flex'; // Show final score
         
         // Offer to restart
         setTimeout(() => {
@@ -468,7 +493,7 @@
             }
         });
         
-        // Send answer to server
+        // Send answer to server (Server records the submission time)
         socket.emit('submit_answer', {
             matchId: currentMatchId,
             answer: answer
