@@ -18,6 +18,7 @@ const activeMatches = {};  // Stores active match objects, keyed by matchId
 
 // Serve the static index.html file
 app.get('/', (req, res) => {
+    // Note: Ensure your 'index.html' is in the same directory as server.js
     res.sendFile(path.join(__dirname, 'index.html'));
 });
 
@@ -152,7 +153,7 @@ function calculateScores(matchId, isFinalCheck = false) {
         let p2Correct = p2Answer && p2Answer.answer === correctAnswer;
 
         if (p1Correct && p2Correct) {
-            // Both correct: Winner is the fastest
+            // Both correct: Winner is the fastest (lower timestamp)
             if (p1Answer.time < p2Answer.time) {
                 match.p1Score++;
                 winnerId = p1Id;
@@ -175,8 +176,9 @@ function calculateScores(matchId, isFinalCheck = false) {
             correctAnswer: correctAnswer,
             p1Score: match.p1Score,
             p2Score: match.p2Score,
-            p1Time: p1Answer ? p1Answer.time / 1000 : Infinity, // Time in seconds
-            p2Time: p2Answer ? p2Answer.time / 1000 : Infinity,
+            // Calculate time taken for display (time is in milliseconds from server receipt)
+            p1Time: p1Answer ? (p1Answer.time - match.startTime) / 1000 : Infinity, 
+            p2Time: p2Answer ? (p2Answer.time - match.startTime) / 1000 : Infinity,
             winnerId: winnerId
         });
         
@@ -262,12 +264,15 @@ io.on('connection', (socket) => {
         const match = activeMatches[data.matchId];
         if (!match) return;
 
-        // Record the answer and time
+        // **CRITICAL FIX: Record the time the server RECEIVED the answer**
+        const receiveTime = Date.now(); 
+        
         const answerData = {
             answer: data.answer,
-            time: Date.now()
+            time: receiveTime // Use the reliable server-side timestamp
         };
 
+        // Store the answer based on which player submitted it
         if (socket.id === match.p1Id && !match.roundAnswers.p1) {
             match.roundAnswers.p1 = answerData;
         } else if (socket.id === match.p2Id && !match.roundAnswers.p2) {
@@ -312,8 +317,7 @@ server.listen(PORT, () => {
 });
 
 
-// --- 6. FLAG DATASET (Hardcoded for simplicity) ---
-// Note: In a real-world app, this would be loaded from a JSON file or database.
+// --- 6. FLAG DATASET (50 Flags) ---
 const flagData = [
     { country: "Albania", image: "https://flagcdn.com/al.svg" },
     { country: "Algeria", image: "https://flagcdn.com/dz.svg" },
@@ -365,5 +369,4 @@ const flagData = [
     { country: "United States", image: "https://flagcdn.com/us.svg" },
     { country: "Vietnam", image: "https://flagcdn.com/vn.svg" },
     { country: "Zimbabwe", image: "https://flagcdn.com/zw.svg" }
-    // Add more flags here if desired! I kept it at 50 for a varied but quick game.
 ];
