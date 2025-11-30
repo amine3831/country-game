@@ -4,8 +4,7 @@
     <title>Flag Quiz Online</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
-        /* CSS remains unchanged */
-        /* ... (Your CSS code here) ... */
+        /* Apply box-sizing globally to ensure margins/padding don't increase the total height */
         * {
             box-sizing: border-box;
         }
@@ -242,18 +241,24 @@
     
     <h1>🌍 Flag Quiz: Fast Lane</h1>
 
-    <div id="status">Guess the Flag!</div> <div id="round-display">▶️ Round 1 of 3</div> <img id="current-flag" class="flag-image" src="https://upload.wikimedia.org/wikipedia/commons/thumb/c/c2/Flag_of_Dominica.svg/2560px-Flag_of_Dominica.svg.png" alt="Flag to guess">
+    <div id="status">Connecting to server and searching for a match...</div>
+
+    <div id="round-display">Round X</div>
+
+    <img id="current-flag" class="flag-image" src="" alt="Flag to guess">
 
     <div id="options-container">
-        <button class="option-button">Azerbaijan</button>
-        <button class="option-button">Dominica</button>
-        <button class="option-button">Montenegro</button>
-        <button class="option-button">Iceland</button>
+        <button class="option-button">Choice 1</button>
+        <button class="option-button">Choice 2</button>
+        <button class="option-button">Choice 3</button>
+        <button class="option-button">Choice 4</button>
     </div>
 
-    <p id="result-message">Select your answer above!</p> <div id="time-display">
-        <span id="player-time">P: 3.0s</span>
-        <span id="opponent-time">O: 3.0s</span>
+    <p id="result-message">Correct Answer Message Here</p>
+
+    <div id="time-display">
+        <span id="player-time">P: --</span>
+        <span id="opponent-time">O: --</span>
     </div>
 
     <div class="score-board">
@@ -289,7 +294,12 @@
 
     // --- MOCK UP FUNCTIONS FOR VISUAL TEST ---
     document.addEventListener('DOMContentLoaded', () => {
-        // Removed the old mock content in favor of the new HTML placeholders
+        // Set mock content to visually confirm layout
+        statusEl.textContent = '🤝 Match Found! Getting ready...';
+        roundDisplayEl.textContent = '▶️ Round 1 of 3';
+        resultMessageEl.textContent = 'Correct Answer Message Here';
+        playerTimeEl.textContent = 'YOU: 1.5s';
+        opponentTimeEl.textContent = 'OPPONENT: 2.0s';
         
         // Ensure buttons are visible for mock-up
         const dummyButtons = optionsContainerEl.querySelectorAll('.option-button');
@@ -298,3 +308,4 @@
 </script>
 </body>
 </html>
+ 
