@@ -11,8 +11,9 @@
 
         /* === 1. FULL-SCREEN DESIGN & NO SCROLL === */
         :root {
-            --primary-color: #3f51b5; /* Indigo */
+            --primary-color: #3f51b5; /* Indigo (Used for Player 1 / YOU) */
             --secondary-color: #ff9800; /* Orange - Selected Answer */
+            --player-2-color: #d32f2f; /* Red (Used for Player 2 / OPPONENT Score) */
             --success-color: #4caf50; /* Green - Correct Answer */
             --error-color: #f44336; /* Red - Incorrect Answer */
             --text-color: #333;
@@ -101,10 +102,8 @@
             width: 90%; 
             margin: 0 auto; 
             object-fit: contain; 
-            /* Background and border removed */
             border-radius: 8px; 
             background-color: transparent;
-            
             margin-bottom: 1vh; 
         }
         
@@ -113,7 +112,6 @@
             display: flex;
             flex-wrap: wrap;
             justify-content: center;
-            /* Use 90% width for consistency with flag */
             width: 90%; 
             height: auto; 
             margin: 0 auto; 
@@ -201,7 +199,15 @@
             background-color: transparent; 
         }
 
-        /* 8% H + 0% M = 8vh (Scoreboard, sits flush at the bottom) */
+        /* === 3. SCOREBOARD STYLES (MATCHING IMAGE) === */
+        
+        #final-score-message {
+            font-size: 4vw;
+            color: var(--text-color);
+            font-weight: normal;
+            margin: 2vh 0 1vh 0;
+        }
+
         .score-board { 
             height: 8vh; 
             background-color: transparent; 
@@ -215,21 +221,36 @@
             border-radius: 8px;
             overflow: hidden; 
         }
+        
+        /* New Scoreboard style for Game Over */
+        .score-board.final-board {
+            /* Reset score board dimensions for the final view */
+            width: 80%;
+            max-width: 350px;
+            height: 20vh;
+            border: 2px solid var(--text-color);
+            border-radius: 0; /* Remove border radius */
+            padding: 0;
+            margin-bottom: 2vh; 
+            background-color: white; /* White background for the final board container */
+        }
+
 
         /* Scoreboard content styling */
         .score-board span {
             flex-grow: 1;
             padding: 0; 
             font-weight: bold;
-            font-size: 4.5vw; 
-            
             display: flex;
             flex-direction: column;
             justify-content: center;
             align-items: center;
         }
         
-        .score-board .label {
+        /* Round Scoreboard default styles (smaller) */
+        .score-board:not(.final-board) #player-score { font-size: 4.5vw; }
+        .score-board:not(.final-board) #opponent-score { font-size: 4.5vw; }
+        .score-board:not(.final-board) .label {
             font-size: 3vw;
             font-weight: normal;
         }
@@ -244,6 +265,49 @@
             color: var(--text-color);
             background-color: white; 
         }
+
+        /* FINAL SCOREBOARD SPECIFIC STYLES */
+        .score-board.final-board #player-score-container,
+        .score-board.final-board #opponent-score-container {
+            background-color: white; /* Remove colored background from score halves */
+            border-right: 1px solid var(--text-color); /* Lighter divider */
+            padding: 1vh 0;
+        }
+
+        .score-board.final-board #player-score-container { color: var(--primary-color); }
+        .score-board.final-board #opponent-score-container { color: var(--player-2-color); }
+        
+        .score-board.final-board .player-name {
+            font-size: 4.5vw;
+            margin-bottom: 2vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+        }
+
+        .score-board.final-board #player-score,
+        .score-board.final-board #opponent-score {
+            font-size: 12vw; /* Large score number */
+            font-weight: 800;
+            line-height: 1;
+        }
+
+        .score-board.final-board .label {
+            display: none; /* Hide the default "YOU" and "OPPONENT" labels */
+        }
+        
+        /* Player color blocks */
+        .score-board.final-board .color-box {
+            width: 10px;
+            height: 10px;
+            border-radius: 2px;
+            margin-right: 2px;
+        }
+
+        #player-color-box { background-color: var(--primary-color); }
+        #opponent-color-box { background-color: var(--player-2-color); }
+
     </style>
 </head>
 <body>
@@ -290,6 +354,7 @@
     let roundStartTime = 0; 
     let myScore = 0;
     let opponentScore = 0;
+    let isP1 = false; // Track if local player is P1
 
     // --- ELEMENT REFERENCES ---
     const gameContainerEl = document.getElementById('game-container');
@@ -314,21 +379,28 @@
         playerTimeEl.textContent = 'YOU: --';
         opponentTimeEl.textContent = 'OPPONENT: --';
         
+        // Ensure the scoreboard is in round mode initially
+        scoreboardContainerEl.classList.remove('final-board');
+        
         // Hide/Show elements based on stage
-        document.querySelector('h1').style.display = showRoundDisplay ? 'flex' : 'none'; // Hide Title
+        const titleEl = document.querySelector('h1');
+        
+        titleEl.style.display = showRoundDisplay ? 'flex' : 'none';
         roundDisplayEl.style.display = showRoundDisplay ? 'flex' : 'none';
         flagImageEl.style.display = showRoundDisplay ? 'block' : 'none';
         optionsContainerEl.style.display = showRoundDisplay ? 'flex' : 'none';
         resultMessageEl.style.display = showRoundDisplay ? 'flex' : 'none';
         playerTimeEl.parentElement.style.display = showRoundDisplay ? 'flex' : 'none';
-        scoreboardContainerEl.style.display = showRoundDisplay ? 'flex' : 'none';
         
+        // In the beginning, the scoreboard is NOT hidden, but it is when status is centered
+        scoreboardContainerEl.style.display = showRoundDisplay ? 'flex' : 'none';
+
         // --- CRITICAL ALIGNMENT CHANGE ---
         if (showRoundDisplay) {
             // Game is active: Use default top-down flow
             gameContainerEl.classList.remove('centered-status');
         } else {
-            // Waiting for opponent: Center the remaining visible element (status)
+            // Waiting for opponent/Game Over: Center the remaining visible element (status/final scoreboard)
             gameContainerEl.classList.add('centered-status');
         }
     }
@@ -349,6 +421,7 @@
 
     socket.on('match_found', (data) => {
         currentMatchId = data.matchId;
+        isP1 = data.isP1; // Store if local player is P1
         statusEl.textContent = '🤝 Match Found! Getting ready...';
         
         myScore = 0;
@@ -425,29 +498,34 @@
         const opponentWon = data.winnerId && data.winnerId !== myId;
         
         // Update scoreboard display
-        playerScoreEl.textContent = data.p1Score;
-        opponentScoreEl.textContent = data.p2Score;
+        const localScore = isP1 ? data.p1Score : data.p2Score;
+        const oppScore = isP1 ? data.p2Score : data.p1Score;
+
+        playerScoreEl.textContent = localScore;
+        opponentScoreEl.textContent = oppScore;
 
         // --- CRITICAL FIX: Prevent overwriting displayed answer times if they were already set ---
         
-        const playerTimeStr = data.p1Time.toFixed(2) + 's';
-        const opponentTimeStr = data.p2Time.toFixed(2) + 's';
-        
+        const p1Time = data.p1Time;
+        const p2Time = data.p2Time;
+        const localTime = isP1 ? p1Time : p2Time;
+        const oppTime = isP1 ? p2Time : p1Time;
+
         // 1. Update Player Time (Only if it's the default or submission status)
         if (playerTimeEl.textContent.includes('--') || playerTimeEl.textContent.includes('Submitting')) {
-            if (data.p1Time === Infinity) {
+            if (localTime === Infinity) {
                  playerTimeEl.textContent = `YOU: Missed`;
             } else {
-                 playerTimeEl.textContent = `YOU: ${playerTimeStr}`;
+                 playerTimeEl.textContent = `YOU: ${localTime.toFixed(2)}s`;
             }
         }
         
         // 2. Update Opponent Time (Only if it's the default or submission status)
         if (opponentTimeEl.textContent.includes('--') || opponentTimeEl.textContent.includes('Submitting')) {
-            if (data.p2Time === Infinity) {
+            if (oppTime === Infinity) {
                 opponentTimeEl.textContent = `OPPONENT: Missed`;
             } else {
-                opponentTimeEl.textContent = `OPPONENT: ${opponentTimeStr}`;
+                opponentTimeEl.textContent = `OPPONENT: ${oppTime.toFixed(2)}s`;
             }
         }
         // --- END CRITICAL FIX ---
@@ -478,36 +556,83 @@
     });
 
     socket.on('game_over', (data) => {
-        resetUI(false); // Hide quiz elements
+        resetUI(false); // Hide most quiz elements
         
-        const finalScore = `Final Score: ${data.p1Score} - ${data.p2Score}`;
+        // Set the final scoreboard class
+        scoreboardContainerEl.classList.add('final-board');
+        scoreboardContainerEl.style.display = 'flex'; // Ensure scoreboard is visible
+
+        // Determine scores and player roles
+        const p1Score = data.p1Score;
+        const p2Score = data.p2Score;
+        
+        let localScore, oppScore, localPlayerName, oppPlayerName;
+        
+        if (isP1) {
+            localScore = p1Score;
+            oppScore = p2Score;
+            localPlayerName = 'PLAYER 1';
+            oppPlayerName = 'PLAYER 2';
+        } else {
+            localScore = p2Score;
+            oppScore = p1Score;
+            localPlayerName = 'PLAYER 2';
+            oppPlayerName = 'PLAYER 1';
+        }
+
+        // --- Update Scoreboard HTML Structure to Match Design ---
+        const p1ScoreContainer = document.getElementById('player-score-container');
+        const p2ScoreContainer = document.getElementById('opponent-score-container');
+        
+        p1ScoreContainer.innerHTML = `
+            <span class="player-name">
+                <span class="color-box" id="player-color-box"></span>
+                ${localPlayerName}
+            </span>
+            <span id="player-score">${localScore}</span>
+        `;
+        
+        p2ScoreContainer.innerHTML = `
+            <span class="player-name">
+                <span class="color-box" id="opponent-color-box"></span>
+                ${oppPlayerName}
+            </span>
+            <span id="opponent-score">${oppScore}</span>
+        `;
+        // --- End Scoreboard HTML Update ---
+        
+        // Add "FINAL SCORES" title
+        const finalScoreMessage = document.createElement('p');
+        finalScoreMessage.id = 'final-score-message';
+        finalScoreMessage.textContent = 'FINAL SCORES';
+        gameContainerEl.insertBefore(finalScoreMessage, scoreboardContainerEl);
+
+
         let message = '';
         let color = getCssVar('--text-color');
 
         if (data.winner === socket.id) {
-            message = `🎉 YOU WON! ${finalScore}`;
+            message = `🎉 YOU WON!`;
             color = getCssVar('--success-color');
         } else if (data.winner) {
-            message = `😭 YOU LOST. ${finalScore}`;
+            message = `😭 YOU LOST.`;
             color = getCssVar('--error-color');
         } else {
-            message = `🤝 DRAW. ${finalScore}`;
+            message = `🤝 DRAW.`;
             color = getCssVar('--text-color');
         }
         
-        statusEl.textContent = message;
-        statusEl.style.color = color;
-        
-        // Display final scoreboard
-        playerScoreEl.textContent = data.p1Score;
-        opponentScoreEl.textContent = data.p2Score;
-        scoreboardContainerEl.style.display = 'flex'; // Show final score
+        // Hide the default status div and use the message area for the outcome
+        statusEl.style.display = 'none';
+        resultMessageEl.style.display = 'flex';
+        resultMessageEl.textContent = message;
+        resultMessageEl.style.color = color;
         
         // Offer to restart
         setTimeout(() => {
-            statusEl.textContent += ' Click here to search for a new match!';
-            statusEl.style.cursor = 'pointer';
-            statusEl.onclick = () => window.location.reload(); 
+            resultMessageEl.textContent += ' Click here to search for a new match!';
+            resultMessageEl.style.cursor = 'pointer';
+            resultMessageEl.onclick = () => window.location.reload(); 
         }, 5000);
     });
 
