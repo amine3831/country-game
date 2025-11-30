@@ -38,7 +38,7 @@
         #game-container { 
             width: 100%; 
             height: 100vh; /* Exactly 100vh */
-            /*max-width: 550px; */
+            /* max-width: 550px; <-- REMOVED AS REQUESTED */
             margin: 0 auto; 
             padding: 0; 
             display: flex; 
@@ -93,13 +93,17 @@
         /* 20% H + 1% M = 21vh (Flag Image) */
         .flag-image { 
             height: 20vh; 
-            width: 90%; 
-            max-width: 450px; 
+            /* *** ADJUSTED FOR 80% WIDTH & 10% MARGIN LEFT/RIGHT *** */
+            width: 80%; /* Takes 80% of the screen width */
+            margin: 0 auto; /* Centers the 80% width element, creating 10% left/right margin */
+            /* *** END ADJUSTMENT *** */
+            
+            max-width: 450px; /* Kept for potentially preventing huge stretch on very wide screens */
             object-fit: cover; 
             border: 3px solid var(--primary-color); 
             border-radius: 8px;
-            margin: 0 auto; 
-            margin-bottom: 1vh;
+            
+            margin-bottom: 1vh; /* Vertical margin remains 1vh */
             background-color: #f0f0f0; 
         }
         
@@ -177,7 +181,7 @@
             background-color: transparent; 
         }
 
-        /* 7% H + 0% M = 7vh (Time Display) */
+        /* 7% H + 1% M = 8vh (Time Display) */
         #time-display {
             height: 7vh;
             display: flex;
@@ -188,7 +192,7 @@
             width: 100%;
             font-weight: bold;
             margin: 0;
-            margin-bottom: 1vh; /* ADJUSTED to 0vh to fit 100vh total */
+            margin-bottom: 1vh; /* Margin preserved as requested */
             padding: 0 3vw;
             background-color: transparent; 
         }
@@ -201,7 +205,7 @@
             width: 90%;
             max-width: 450px; 
             margin: 0 auto; 
-            margin-bottom: 0vh; /* ADJUSTED to 0vh to fit 100vh total */
+            margin-bottom: 0vh; /* Final element, must be 0vh to fit 100vh total */
             padding: 0;
             
             border: 2px solid #333; 
