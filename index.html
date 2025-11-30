@@ -101,12 +101,11 @@
             width: 90%; 
             margin: 0 auto; 
             object-fit: contain; 
-            /* REMOVED BORDER: */
-            /* border: 3px solid var(--primary-color); */ 
-            border-radius: 8px;
+            /* FIXED: Removed border and background */
+            border-radius: 8px; 
+            background-color: transparent;
             
             margin-bottom: 1vh; 
-            background-color: #f0f0f0; 
         }
         
         /* Options Container */
@@ -288,7 +287,6 @@
     const socket = io();
     let currentMatchId = null;
     let isAnswered = false;
-    // NEW: Variable to track when the round started for time calculation
     let roundStartTime = 0; 
     let myScore = 0;
     let opponentScore = 0;
@@ -368,7 +366,7 @@
         isAnswered = false;
         resetUI(true); // Show quiz elements
         
-        // NEW: Record the precise time the client received the new round
+        // Client still tracks this, though the server is the source of truth for time
         roundStartTime = Date.now(); 
         
         statusEl.textContent = 'Go!';
@@ -395,16 +393,26 @@
         resultMessageEl.style.color = getCssVar('--text-color');
     });
 
-    // NEW HANDLER: Immediate feedback when the server registers the answer
+    // NEW LOGIC: Immediate feedback when the server registers the answer for BOTH players
     socket.on('answer_registered', (data) => {
-        const timeTaken = (data.serverReceiveTime - roundStartTime) / 1000;
+        const timeTaken = data.timeElapsed;
         
-        // Update the result message immediately
-        resultMessageEl.textContent = '✅ Answer Submitted! Waiting for opponent...';
-        resultMessageEl.style.color = getCssVar('--primary-color');
-        
-        // Update player time display immediately
-        playerTimeEl.textContent = `YOU: ${timeTaken.toFixed(2)}s`;
+        if (data.isOpponent) {
+            // This event is about the OPPONENT's answer
+            opponentTimeEl.textContent = `OPPONENT: ${timeTaken.toFixed(2)}s`;
+            
+            // Show a waiting message, but don't claim success for the local player
+            resultMessageEl.textContent = 'Opponent answered! You must answer now.';
+            resultMessageEl.style.color = getCssVar('--text-color');
+            
+        } else {
+            // This event is about the LOCAL PLAYER's answer
+            playerTimeEl.textContent = `YOU: ${timeTaken.toFixed(2)}s`;
+            
+            // Local player's success confirmation
+            resultMessageEl.textContent = '✅ Answer Submitted! Waiting for opponent...';
+            resultMessageEl.style.color = getCssVar('--primary-color');
+        }
     });
 
 
@@ -420,8 +428,9 @@
         playerScoreEl.textContent = data.p1Score;
         opponentScoreEl.textContent = data.p2Score;
 
-        // Display times (opponent time is now accurate)
-        // Player time is already displayed from 'answer_registered' but is reconfirmed here.
+        // Display times (Reconfirm with official server time)
+        // Note: data.p1Time and data.p2Time are the final, server-calculated times in seconds.
+        playerTimeEl.textContent = `YOU: ${data.p1Time.toFixed(2)}s`;
         opponentTimeEl.textContent = `OPPONENT: ${data.p2Time.toFixed(2)}s`; 
 
         // Style buttons based on result
@@ -517,6 +526,7 @@
             answer: answer
         });
         
+        // Client-side visual update while waiting for server confirmation
         resultMessageEl.textContent = 'Submitting answer...';
         resultMessageEl.style.color = getCssVar('--text-color');
     }
