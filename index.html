@@ -4,7 +4,7 @@
     <title>Flag Quiz Online</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
-        /* FIX: Apply box-sizing globally to ensure margins/padding don't increase the total height */
+        /* Apply box-sizing globally to ensure margins/padding don't increase the total height */
         * {
             box-sizing: border-box;
         }
@@ -22,7 +22,7 @@
         body { 
             font-family: 'Arial', sans-serif; 
             text-align: center; 
-            background: var(--bg-gradient); /* Use a subtle background gradient */
+            background: var(--bg-gradient); 
             margin: 0;
             padding: 0;
             display: flex;
@@ -43,12 +43,12 @@
             padding: 0; 
             display: flex; 
             flex-direction: column;
-            background-color: transparent; /* Clean background */
+            background-color: transparent; /* Removed visualization background */
         }
 
         /* === 2. HEADER & GAME ELEMENTS (PRECISE 100vh FLOW LAYOUT) === */
         
-        /* 8% for the Title + 1% Margin Below = 9vh */
+        /* 8% H + 1% M = 9vh */
         h1 {
             color: var(--primary-color);
             font-size: 6vw; 
@@ -59,10 +59,10 @@
             margin: 0; 
             margin-bottom: 1vh; 
             padding: 0 3vw; 
-            background-color: white; /* Clean background for the title block */
+            background-color: white; 
         }
 
-        /* 7% for "Match Found" + 1% Margin Below = 8vh */
+        /* 7% H + 1% M = 8vh */
         #status {
             height: 7vh;
             display: flex;
@@ -74,10 +74,10 @@
             margin: 0;
             margin-bottom: 1vh; 
             padding: 0 3vw;
-            background-color: white; /* Clean background */
+            background-color: white; 
         }
 
-        /* 7% for "Round 1 of 3" + 1% Margin Below = 8vh */
+        /* 7% H + 1% M = 8vh */
         #round-display {
             height: 7vh;
             display: flex;
@@ -87,10 +87,10 @@
             margin: 0;
             margin-bottom: 1vh; 
             padding: 0 3vw;
-            background-color: white; /* Clean background */
+            background-color: white; 
         }
 
-        /* 20% for the Flag + 1% Margin Below = 21vh */
+        /* 20% H + 1% M = 21vh */
         .flag-image { 
             height: 20vh; 
             width: 90%; 
@@ -100,10 +100,10 @@
             border-radius: 8px;
             margin: 0 auto; 
             margin-bottom: 1vh;
-            background-color: #f0f0f0; /* Light grey placeholder/loading background */
+            background-color: #f0f0f0; /* Light grey placeholder */
         }
         
-        /* Options Container (now manages flow, not fixed height) */
+        /* Options Container */
         #options-container {
             display: flex;
             flex-wrap: wrap;
@@ -115,7 +115,7 @@
             padding: 0 3vw; 
         }
         
-        /* 6% for each choice + 1% Margin Below = 7vh per element (in flow) */
+        /* 6% H + 1% M = 7vh per element (in flow) */
         .option-button { 
             height: 6vh; 
             display: flex;
@@ -137,7 +137,7 @@
             box-shadow: 0 3px var(--primary-color);
         }
         
-        /* State styles for buttons */
+        /* State styles for buttons (retained) */
         .option-button:hover:not(:disabled) {
             background-color: #303f9f;
             transform: translateY(-2px);
@@ -161,7 +161,7 @@
             box-shadow: 0 0 10px 5px var(--secondary-color) !important;
         }
 
-        /* 10% for "Correct Answer..." + 1% Margin Below = 11vh */
+        /* 10% H + 1% M = 11vh (Result Message) */
         #result-message {
             height: 10vh; /* Final requested height */
             display: flex;
@@ -173,10 +173,10 @@
             margin: 0;
             margin-bottom: 1vh; /* 1% margin below */
             padding: 0 3vw;
-            background-color: white; /* Clean background */
+            background-color: white; 
         }
 
-        /* 7% for the time answer + 0% Margin Below = 7vh */
+        /* 7% H + 0% M = 7vh (Time Display) */
         #time-display {
             height: 7vh;
             display: flex;
@@ -187,12 +187,12 @@
             width: 100%;
             font-weight: bold;
             margin: 0;
-            margin-bottom: 0vh; /* Adjusted to 0vh to fit 100vh total */
+            margin-bottom: 0vh; /* Adjusted to 0vh to compensate for 10vh result msg */
             padding: 0 3vw;
-            background-color: white; /* Clean background */
+            background-color: white; 
         }
 
-        /* 8% for Scoreboard + 0% Margin Below = 8vh (Sits flush at the bottom) */
+        /* 8% H + 0% M = 8vh (Scoreboard, sits flush at the bottom) */
         .score-board { 
             height: 8vh; /* REQUESTED 8% height */
             background-color: #e0e0e0; /* Light grey for scoreboard */
@@ -208,7 +208,7 @@
             overflow: hidden; 
         }
 
-        /* Scoreboard content styling remains the same */
+        /* Scoreboard content styling */
         .score-board span {
             flex-grow: 1;
             padding: 0; 
@@ -233,7 +233,6 @@
             background-color: white; 
         }
         
-        /* Media query for smaller screens: stack buttons vertically */
         @media (max-width: 768px) {
             .option-button {
                 width: calc(100% - 1vh); 
@@ -298,7 +297,7 @@
         return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
     }
 
-    // --- MOCK UP FUNCTIONS FOR VISUAL TEST (Remove this block for production) ---
+    // --- MOCK UP FUNCTIONS FOR VISUAL TEST (Retained for quick front-end debugging) ---
     document.addEventListener('DOMContentLoaded', () => {
         statusEl.textContent = '🤝 Match Found! Getting ready...';
         roundDisplayEl.textContent = '▶️ Round 1 of 3';
@@ -310,7 +309,7 @@
         const dummyButtons = optionsContainerEl.querySelectorAll('.option-button');
         dummyButtons.forEach(btn => btn.style.display = 'flex');
     });
-    // --------------------------------------------------------------------------
+    // -----------------------------------------------------------------------------------
 </script>
 </body>
 </html>
