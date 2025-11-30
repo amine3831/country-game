@@ -17,60 +17,175 @@
         body { 
             font-family: 'Arial', sans-serif; 
             text-align: center; 
-            background: var(--bg-gradient); 
+            /* REMOVED background gradient to better see the colored blocks */
+            background-color: white; 
             margin: 0;
             padding: 0;
             display: flex;
             justify-content: center;
-            align-items: center;
+            align-items: flex-start; /* Align content to the top */
             height: 100vh;
             width: 100vw;
             color: var(--text-color);
             font-size: 16px; 
-            overflow: hidden; 
+            /* overflow: hidden; -- NOTE: Since total is 100vh, hidden is okay. */
         }
         
         #game-container { 
             width: 100vw; 
-            height: 100vh; 
-            max-width: none; 
-            margin: 0; 
+            height: 100vh; /* Must be 100vh for vh units to sum correctly */
+            max-width: 550px; 
+            margin: 0 auto; 
             padding: 0 3vw; 
-            display: block; 
+            display: flex; /* Use flex to manage the entire vertical flow */
+            flex-direction: column;
             box-sizing: border-box; 
             background-color: transparent; 
-            border-radius: 0; 
         }
 
-        /* === 2. HEADER & SCOREBOARD (FIXED VH DISTRIBUTION) === */
+        /* === 2. HEADER & GAME ELEMENTS (FLOW LAYOUT) === */
         
-        /* 8% for the Title */
+        /* 8% for the Title + 1% Margin Below = 9vh */
         h1 {
             color: var(--primary-color);
             font-size: 6vw; 
-            /* VISUAL SPLIT: Light Red */
-            background-color: #ffcccc; 
+            background-color: #ffcccc; /* VISUAL SPLIT: Light Red */
             height: 8vh; 
             display: flex;
             justify-content: center;
             align-items: center;
             margin: 0; 
+            margin-bottom: 1vh; 
+        }
+
+        /* 7% for "Match Found" + 1% Margin Below = 8vh */
+        #status {
+            height: 7vh;
+            background-color: #ffe0b2; /* VISUAL SPLIT: Light Orange */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-weight: bold;
+            font-size: 5vw; 
+            width: 100%;
+            margin: 0;
+            margin-bottom: 1vh; 
+        }
+
+        /* 7% for "Round 1 of 3" + 1% Margin Below = 8vh */
+        #round-display {
+            height: 7vh;
+            background-color: #fff9c4; /* VISUAL SPLIT: Light Yellow */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 5vw; 
+            margin: 0;
+            margin-bottom: 1vh; 
+        }
+
+        /* 20% for the Flag + 1% Margin Below = 21vh */
+        .flag-image { 
+            height: 20vh; 
+            background-color: #c8e6c9; /* VISUAL SPLIT: Light Green */
+            width: 90%; 
+            max-width: 450px; 
+            object-fit: cover; 
+            border: 3px solid var(--primary-color); 
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            margin: 0 auto; 
+            margin-bottom: 1vh;
         }
         
-        /* Scoreboard (Fixed 7vh at the bottom) */
+        /* Options Container (now manages flow, not fixed height) */
+        #options-container {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            width: 100%;
+            max-width: 550px; 
+            height: auto; 
+            margin: 0;
+            padding: 0;
+        }
+        
+        /* 6% for each choice + 1% Margin Below = 7vh per element (in flow) */
+        .option-button { 
+            height: 6vh; 
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            
+            padding: 0; 
+            /* 1vh margin below for separation, 0.5vh side for centering */
+            margin: 0.5vh 0.5vh 1vh 0.5vh; 
+            
+            cursor: pointer; 
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 4.5vw; 
+            transition: background-color 0.3s, transform 0.1s;
+            width: calc(50% - 1vh); 
+            box-shadow: 0 3px var(--primary-color);
+        }
+        
+        /* Unique colors for individual choice visualization */
+        .option-button:nth-child(1) { background-color: #66bb6a; } 
+        .option-button:nth-child(2) { background-color: #4db6ac; }
+        .option-button:nth-child(3) { background-color: #ffb74d; }
+        .option-button:nth-child(4) { background-color: #ff8a65; }
+
+        .option-button:hover:not(:disabled) {
+            background-color: #303f9f;
+            transform: translateY(-2px);
+            box-shadow: 0 5px #303f9f;
+        }
+        /* ... existing state styles ... */
+
+        /* 7% for "Correct Answer..." + 1% Margin Below = 8vh */
+        #result-message {
+            height: 7vh;
+            background-color: #e1bee7; /* VISUAL SPLIT: Light Violet */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-weight: bold;
+            font-size: 5vw; 
+            width: 100%;
+            margin: 0;
+            margin-bottom: 1vh; /* 1% margin below */
+            padding: 0;
+        }
+
+        /* 7% for the time answer + 1% Margin Below = 8vh */
+        #time-display {
+            height: 7vh;
+            background-color: #f0f4c3; /* VISUAL SPLIT: Light Olive */
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            font-style: italic;
+            font-size: 4vw; 
+            width: 100%;
+            font-weight: bold;
+            margin: 0;
+            margin-bottom: 1vh; /* REVERTED to standard 1vh */
+            padding: 0;
+        }
+
+        /* 8% for Scoreboard + 2% Margin Below = 10vh */
         .score-board { 
-            position: absolute; 
-            bottom: 0;        
-            left: 50%;          
-            transform: translateX(-50%); 
-            z-index: 10; 
-            /* VISUAL SPLIT: Light Grey */
-            background-color: #cfd8dc; 
-            height: 7vh; 
+            height: 8vh; /* REQUESTED 8% height */
+            background-color: #cfd8dc; /* VISUAL SPLIT: Light Grey */
             display: flex; 
             width: 90%;
             max-width: 450px; 
-            margin: 0; 
+            margin: 0 auto; 
+            /* NEW: 2vh bottom margin to create the final buffer */
+            margin-bottom: 2vh; 
             padding: 0;
             
             border: 2px solid #333; 
@@ -78,7 +193,7 @@
             overflow: hidden; 
         }
 
-        /* Styling for the individual score segments */
+        /* Scoreboard content styling remains the same */
         .score-board span {
             flex-grow: 1;
             padding: 0; 
@@ -92,7 +207,6 @@
             border-right: 1px solid #ccc; 
         }
         
-        /* Specific Player Styling */
         #player-score { 
             color: white;
             background-color: var(--primary-color); 
@@ -103,184 +217,14 @@
             color: var(--text-color);
             background-color: white; 
         }
-        /* --- END US OPEN SCOREBOARD DESIGN --- */
+        /* --- END SCOREBOARD --- */
 
-        /* === 3. GAME AREA & ELEMENTS (85vh Total Space) === */
-        
-        #game-area {
-            height: 85vh; 
-            display: flex; 
-            flex-direction: column;
-            align-items: center;
-            justify-content: flex-start;
-            width: 100%;
-            padding: 0;
-            overflow: hidden; 
-        }
-        
-        /* --- Status, Round, Message, Time (7vh each) --- */
-
-        /* 7% for "Match Found" (Status when game is running) */
-        #status {
-            height: 7vh;
-            /* VISUAL SPLIT: Light Orange */
-            background-color: #ffe0b2; 
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            font-weight: bold;
-            font-size: 5vw; 
-            width: 100%;
-            padding: 0;
-            margin: 0;
-            border-radius: 4px;
-            position: relative; 
-            transform: none;
-            top: auto;
-            left: auto;
-        }
-
-        /* 7% for "Round 1 of 3" */
-        #round-display {
-            height: 7vh;
-            /* VISUAL SPLIT: Light Yellow */
-            background-color: #fff9c4; 
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            font-size: 5vw; 
-            margin: 0;
-        }
-
-        /* 20% for the Flag */
-        .flag-image { 
-            height: 20vh; 
-            /* VISUAL SPLIT: Light Green */
-            background-color: #c8e6c9; 
-            width: 90%; 
-            max-width: 450px; 
-            object-fit: cover; 
-            border: 3px solid var(--primary-color); 
-            border-radius: 8px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            margin: 0; 
-        }
-        
-        /* --- Options Container (Now dynamic height for visualization) --- */
-        
-        #options-container {
-            /* REMOVED fixed height (26vh) and background-color for visualization */
-            display: flex;
-            flex-wrap: wrap;
-            justify-content: center;
-            width: 100%;
-            max-width: 550px; 
-            height: auto; 
-            margin: 0;
-            padding: 0;
-        }
-        
-        /* 6% for each choice + 1vh margin = 7vh per element */
-        .option-button { 
-            height: 6vh; 
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            
-            padding: 0; 
-            /* VISUAL SPLIT: 1vh top margin to show separation */
-            margin: 1vh 0.5vh 0 0.5vh; 
-            
-            cursor: pointer; 
-            
-            /* Assigning unique background colors for visualization */
-            background-color: var(--primary-color); 
-            color: white;
-            border: none;
-            border-radius: 8px;
-            font-size: 4.5vw; 
-            transition: background-color 0.3s, transform 0.1s;
-            width: calc(50% - 1vh); 
-            box-shadow: 0 3px var(--primary-color);
-        }
-        
-        /* Unique colors for individual choice visualization (temporary) */
-        .option-button:nth-child(1) { background-color: #66bb6a; margin-top: 2vh;} /* Start of choices section */
-        .option-button:nth-child(2) { background-color: #4db6ac; }
-        .option-button:nth-child(3) { background-color: #ffb74d; }
-        .option-button:nth-child(4) { background-color: #ff8a65; }
-
-        .option-button:hover:not(:disabled) {
-            background-color: #303f9f;
-            transform: translateY(-2px);
-            box-shadow: 0 5px #303f9f;
-        }
-        /* Disabled buttons turn grey unless selected/correct/incorrect */
-        .option-button:disabled {
-            background-color: #ccc; 
-            cursor: default;
-            box-shadow: none;
-        }
-        .option-button.correct {
-            background-color: var(--success-color) !important;
-            box-shadow: 0 3px var(--success-color) !important;
-        }
-        .option-button.incorrect {
-            background-color: var(--error-color) !important;
-            box-shadow: none !important;
-        }
-        /* Selected button is orange */
-        .option-button.selected {
-            background-color: var(--secondary-color) !important; 
-            box-shadow: 0 0 10px 5px var(--secondary-color) !important;
-        }
-
-
-        /* 7% for "Correct Answer..." */
-        #result-message {
-            height: 7vh;
-            /* VISUAL SPLIT: Light Violet */
-            background-color: #e1bee7; 
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            font-weight: bold;
-            font-size: 5vw; 
-            width: 100%;
-            padding: 0;
-            /* Result message margin from previous request */
-            margin-top: 1vh; 
-            margin-bottom: 0; 
-        }
-
-        /* 7% for the time answer */
-        #time-display {
-            height: 7vh;
-            /* VISUAL SPLIT: Light Olive */
-            background-color: #f0f4c3; 
-            display: flex;
-            justify-content: space-around;
-            align-items: center;
-            font-style: italic;
-            font-size: 4vw; 
-            width: 100%;
-            font-weight: bold;
-            margin: 0;
-            padding: 0;
-        }
-        
         .centered-status {
-            position: absolute; 
-            top: 50%;          
-            left: 50%;          
-            transform: translate(-50%, -50%); 
-            height: auto !important; 
-            display: block !important;
-            /* Ensure centered status background overrides the 7vh background */
-            background-color: var(--primary-color) !important; 
-            color: white;
-            padding: 2vh 4vw !important;
-            border-radius: 8px;
+            /* Reset styles for centered status */
+            position: static; 
+            transform: none; 
+            width: 100%;
+            height: 7vh; 
         }
 
         /* Media query for smaller screens: tighter fit */
@@ -299,23 +243,24 @@
 
     <div id="status">Connecting to server and searching for a match...</div>
 
-    <div id="game-area">
-        <h2 id="round-display">Round X</h2>
-        <img id="current-flag" class="flag-image" src="" alt="Flag to guess">
-        <div id="options-container">
-            <button class="option-button">Choice 1</button>
-            <button class="option-button">Choice 2</button>
-            <button class="option-button">Choice 3</button>
-            <button class="option-button">Choice 4</button>
-            </div>
-        <p id="result-message"></p>
+    <div id="round-display">Round X</div>
 
-        <div id="time-display">
-            <span id="player-time">P: --</span>
-            <span id="opponent-time">O: --</span>
-        </div>
+    <img id="current-flag" class="flag-image" src="" alt="Flag to guess">
+
+    <div id="options-container">
+        <button class="option-button">Choice 1</button>
+        <button class="option-button">Choice 2</button>
+        <button class="option-button">Choice 3</button>
+        <button class="option-button">Choice 4</button>
     </div>
-    
+
+    <p id="result-message">Correct Answer Message Here</p>
+
+    <div id="time-display">
+        <span id="player-time">P: --</span>
+        <span id="opponent-time">O: --</span>
+    </div>
+
     <div class="score-board">
         <span id="player-score">YOU: 0</span>
         <span id="opponent-score">OPPONENT: 0</span>
@@ -333,15 +278,12 @@
     
     // Element references
     const statusEl = document.getElementById('status');
-    const gameAreaEl = document.getElementById('game-area');
     const roundDisplayEl = document.getElementById('round-display');
     const flagImageEl = document.getElementById('current-flag');
     const optionsContainerEl = document.getElementById('options-container');
     const resultMessageEl = document.getElementById('result-message');
     const playerScoreEl = document.getElementById('player-score');
     const opponentScoreEl = document.getElementById('opponent-score');
-    
-    // TIME REFERENCES
     const playerTimeEl = document.getElementById('player-time');
     const opponentTimeEl = document.getElementById('opponent-time');
 
@@ -352,15 +294,14 @@
 
     // --- MOCK UP FUNCTIONS FOR VISUAL TEST ---
     document.addEventListener('DOMContentLoaded', () => {
-        // Ensure game area is visible for the visual test
-        gameAreaEl.style.display = 'flex';
+        // Since game-container is now flex-direction: column, we ensure visibility of elements
         statusEl.textContent = '🤝 Match Found! Getting ready...';
-        statusEl.classList.remove('centered-status');
         roundDisplayEl.textContent = '▶️ Round 1 of 3';
         resultMessageEl.textContent = 'Correct Answer Message Here';
         playerTimeEl.textContent = 'YOU: 1.5s';
         opponentTimeEl.textContent = 'OPPONENT: 2.0s';
         
+        // Ensure buttons are visible
         const dummyButtons = optionsContainerEl.querySelectorAll('.option-button');
         dummyButtons.forEach(btn => btn.style.display = 'flex');
     });
