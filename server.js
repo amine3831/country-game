@@ -1,29 +1,31 @@
-// server.js (COMPLETE UNIFIED CODE)
+// server.js (COMPLETE UNIFIED CODE with Debugging)
 
 // --- 1. CORE IMPORTS & SERVER SETUP ---
 const path = require('path');
 const express = require('express');
 const http = require('http');
 const socketio = require('socket.io');
-const fs = require('fs');
+const fs = require('fs'); // Included in case it's used elsewhere, but not strictly needed for the main logic
 
 const app = express();
 const server = http.createServer(app);
 const io = socketio(server);
 
-// --- 2. DATA LOADING (Adjust paths if necessary) ---
-// Assuming flag_data.json and groups.js are in the same directory
-const flagData = require('./flag_data.json'); 
-const { CONFUSION_GROUPS_MAP } = require('./groups'); // Assuming groups.js exports this
+// --- 2. DATA LOADING (CRITICAL SECTION) ---
+try {
+    // Assuming flag_data.json and groups.js are in the same directory
+    const flagData = require('./flag_data.json'); 
+    const { CONFUSION_GROUPS_MAP } = require('./groups'); // Assuming groups.js exports this
+    console.log(`✅ Data loaded: ${flagData.length} flags.`);
+} catch (error) {
+    console.error("❌ CRITICAL ERROR: Failed to load game data (flag_data.json or groups.js). Server will crash:", error.message);
+    process.exit(1); // Exit if data is missing, which is a fatal error
+}
+
 
 // --- 3. GLOBAL STATE & CONFIGURATION ---
 
-// In a real app, this would be a database call
-const users = {
-    // Populate with actual users or read from a 'db' file if necessary
-}; 
-
-// Game state variables
+const users = {}; 
 let waitingPlayer = null; 
 const activeMatches = {};  
 const simpleGames = {}; // Track active simple games { socketId: { matchId, currentStreak, highScore, matchQuestions, ... } }
@@ -72,20 +74,37 @@ function generateQuizOptions(correctCountry) {
         options.push(...randomOptions);
     }
     
-    return shuffleArray(options).slice(0, 4); // Ensure exactly 4 options and shuffle them
+    // Safety check: ensure 4 unique options
+    return shuffleArray([...new Set(options)]).slice(0, 4); 
 }
 
 /** Starts the next round for a single-player simple game. */
 function startSimpleGameRound(playerId) {
     const game = simpleGames[playerId];
-    if (!game) return;
+    if (!game) {
+        console.error(`ERROR: Game object not found for playerId: ${playerId}`);
+        return;
+    }
 
     // Move to the next question
     game.currentQuestionIndex++;
     
-    // Loop questions if we run out (for simplicity)
+    // Safety check: Avoid index issues if matchQuestions is somehow empty
+    if (game.matchQuestions.length === 0) {
+         console.error("DATA ERROR: matchQuestions is empty! Cannot start round.");
+         return;
+    }
+    
     const questionIndex = game.currentQuestionIndex % game.matchQuestions.length; 
     const currentQuestion = game.matchQuestions[questionIndex];
+    
+    // --- DEBUG LOGS AND CHECKS ---
+    if (!currentQuestion || !currentQuestion.country || !currentQuestion.image) {
+        console.error("DATA ERROR: Current question is incomplete or undefined at index", questionIndex, currentQuestion);
+        return;
+    }
+    console.log(`[SIMPLE] Starting Round ${game.currentStreak + 1}. Flag: ${currentQuestion.country}`);
+    // --- END DEBUG LOGS ---
     
     const options = generateQuizOptions(currentQuestion.country);
 
@@ -106,9 +125,8 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// 💡 FIX FOR Cannot GET /simple_game
+// FIX FOR Cannot GET /simple_game
 app.get('/simple_game', (req, res) => {
-    // Note: The file simple_game.html MUST be in the same directory
     res.sendFile(path.join(__dirname, 'simple_game.html'));
 });
 
@@ -116,34 +134,28 @@ app.get('/login', (req, res) => {
     res.sendFile(path.join(__dirname, 'login.html'));
 });
 
-// Placeholder for actual login logic
 app.post('/login', (req, res) => {
-    // In a real app: check credentials, set cookie/session, redirect with userId query param
     const username = req.body.username || 'Guest';
     const userId = 'user_' + Math.random().toString(36).substring(2, 8);
-    // Redirect to main page with userId query parameter for client-side auth
     res.redirect(`/?userId=${userId}`); 
 });
 
-// Placeholder for logout
 app.get('/logout', (req, res) => {
-    // In a real app: clear session/cookie
     res.redirect('/login');
 });
 
-// --- 6. SOCKET.IO EVENT HANDLERS (Simplified) ---
+// --- 6. SOCKET.IO EVENT HANDLERS ---
 
 io.on('connection', (socket) => {
     const userId = socket.handshake.query.userId;
-    let username = 'Guest'; // Default
+    let username = 'Guest'; 
     
     // Auth Check
     if (!userId) {
         socket.emit('unauthorized_access');
         return socket.disconnect(true);
     }
-    // Simple placeholder for auth successful
-    console.log(`Authenticated user connected: ${username} (ID: ${userId})`);
+    console.log(`[SOCKET] User connected: ${username} (ID: ${userId})`);
     socket.emit('auth_successful', { username: username });
 
     
@@ -166,7 +178,7 @@ io.on('connection', (socket) => {
             currentQuestionIndex: -1,
         };
         
-        console.log(`Simple Game session started for user ${socket.id}.`);
+        console.log(`[SIMPLE] Session started for ${socket.id}. Attempting first round...`);
         startSimpleGameRound(socket.id); 
     });
 
@@ -200,25 +212,13 @@ io.on('connection', (socket) => {
                 finalStreak: finalStreak,
                 highScore: game.highScore
             });
-            // We keep the game object to store the high score for the session
         }
     });
-
-    // --- MULTIPLAYER PLACEHOLDERS ---
-    socket.on('request_multiplayer_match', () => { 
-        socket.emit('waiting_for_opponent');
-        // Your existing matchmaking logic would go here
-    });
-
-    socket.on('submit_answer', (data) => {
-        // Your existing multiplayer answer logic would go here
-    });
-
 
     // --- DISCONNECT HANDLER ---
     socket.on('disconnect', () => { 
         delete simpleGames[socket.id];
-        // Your existing multiplayer cleanup logic would go here
+        // ... (multiplayer cleanup) ...
     });
 });
 
