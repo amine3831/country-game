@@ -1,10 +1,31 @@
 // simple_game_logic.js
 
+// --- HELPER FUNCTION & AUTHENTICATION CHECK (CRITICAL FIX) ---
+
+/** Helper function to read query parameters from the URL. */
+function getQueryParameter(name) {
+    const urlParams = new URLSearchParams(window.location.search);
+    return urlParams.get(name);
+}
+
+const userId = getQueryParameter('userId'); 
+
+// CRITICAL CHECK: If userId is missing, redirect back to the main page to force authentication.
+if (!userId) {
+    alert("Authentication failed! Redirecting to login page.");
+    window.location.href = 'index.html'; // Assume index.html handles the redirect to login
+}
+
+// Initialize socket connection using the confirmed userId
+const RENDER_URL = window.location.protocol + "//" + window.location.host; 
+const socket = io(RENDER_URL, {
+    query: { userId: userId } 
+});
+
 // --- 1. GLOBAL GAME STATE VARIABLES ---
 let isAnswered = false; // Prevents spamming answer button
 
 // --- 2. ELEMENT REFERENCES ---
-// Note: We don't need opponent score/time elements, but they are referenced for consistency.
 const gameContainerEl = document.getElementById('game-container');
 const statusEl = document.getElementById('status');
 const roundDisplayEl = document.getElementById('round-display');
@@ -57,7 +78,7 @@ socket.on('connect', () => {
     statusEl.textContent = '✅ Connected. Starting game...';
     resetUI(false); 
     
-    // 💡 NEW: Request the first round immediately upon connecting to the simple_game page
+    // Request the first round immediately upon connecting to the simple_game page
     socket.emit('start_simple_session');
 });
 
@@ -106,7 +127,7 @@ socket.on('simple_game_feedback', (data) => {
         resultMessageEl.textContent = '✅ Correct! Get ready for the next one...';
         resultMessageEl.style.color = getCssVar('--success-color');
         
-        // After showing success, the server will send 'simple_new_round' immediately
+        // The server will send 'simple_new_round' immediately after this
     } else {
         // Game Over will be handled by simple_game_over listener
         resultMessageEl.textContent = `❌ WRONG! Game Over.`;
@@ -159,7 +180,7 @@ function handleAnswer(answer, selectedButton) {
         }
     });
     
-    // 💡 NEW: Use dedicated simple answer submission event
+    // Use dedicated simple answer submission event
     socket.emit('submit_simple_answer', {
         answer: answer
     });
