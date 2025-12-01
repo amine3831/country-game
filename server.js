@@ -1,26 +1,25 @@
-// server.js (FINAL UNIFIED CODE - Incorporating Proven Group Lookup)
+// server.js (FINAL, UNIFIED, WORKING CODE)
 
 // --- 1. CORE IMPORTS & SERVER SETUP ---
 const path = require('path');
 const express = require('express');
 const http = require('http');
-const socketio = require('socket.io'); // Using the older socketio package structure
+const socketio = require('socket.io'); 
 const fs = require('fs');
 
 const app = express();
 const server = http.createServer(app);
 const io = socketio(server);
 
-// --- 2. DATA LOADING (Uses require() for flag_data.json and groups.js) ---
+// --- 2. DATA LOADING ---
 let flagData = []; 
 let CONFUSION_GROUPS_MAP = {}; 
-// Note: We remove the CONFUSION_GROUP_REVERSE_MAP and CONFUSION_GROUP_REVERSE_MAP here!
 
 try {
     // Attempt to load flag_data.json
     const rawFlagData = require('./flag_data.json'); 
     
-    // FIX: Map 'correctAnswer' key to 'country' key for consistency
+    // FIX: Map 'correctAnswer' key to 'country' key
     flagData = rawFlagData.map(item => ({
         ...item,
         country: item.correctAnswer, 
@@ -38,7 +37,6 @@ try {
     console.log(`✅ Data loaded: ${flagData.length} flags.`);
 } catch (error) {
     console.error("❌ CRITICAL ERROR: Failed to load game data or groups map. Game will not function:", error.message);
-    // You must ensure flag_data.json and groups.js are in the same directory.
 }
 
 
@@ -51,12 +49,12 @@ const simpleGames = {};
 const MAX_ROUNDS = 10;
 const ROUND_TIME_LIMIT_MS = 10000;
 
-// Middleware for serving static files
+// Middleware for serving static files and parsing request body
 app.use(express.static(path.join(__dirname)));
-app.use(express.urlencoded({ extended: true }));
-app.use(express.json());
+app.use(express.urlencoded({ extended: true })); // For parsing x-www-form-urlencoded
+app.use(express.json()); // For parsing application/json
 
-// --- 4. UTILITY FUNCTIONS (UPDATED generateQuizOptions with PROVEN LOGIC) ---
+// --- 4. UTILITY FUNCTIONS ---
 
 function shuffleArray(array) {
     for (let i = array.length - 1; i > 0; i--) {
@@ -79,9 +77,6 @@ function selectUniqueRandom(sourceArr, count, excludeArr = []) {
 
 /**
  * Generates quiz options (4 total) based on the custom Confusion Groups Map.
- * This uses the robust, working lookup logic from the previous server.js version.
- * @param {string} correctCountry - The name of the flag currently being displayed.
- * @returns {Array<string>} An array of four shuffled country names (options).
  */
 function generateQuizOptions(correctCountry) {
     const ALL_COUNTRIES_NAMES = flagData.map(flag => flag.country);
@@ -175,34 +170,63 @@ function startSimpleGameRound(playerId) {
 }
 
 
-// --- 5. EXPRESS ROUTES (Auth placeholders) ---
+// --- 5. EXPRESS ROUTES ---
 
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// Route for simple game
-app.get('/simple_game', (req, res) => {
-    res.sendFile(path.join(__dirname, 'simple_game.html'));
-});
-
+// Route to serve the login page
 app.get('/login', (req, res) => {
     res.sendFile(path.join(__dirname, 'login.html'));
 });
 
+// CRITICAL FIX: Route to serve the signup page
+app.get('/signup', (req, res) => {
+    res.sendFile(path.join(__dirname, 'signup.html'));
+});
+
+// Route for the simple game HTML
+app.get('/simple_game', (req, res) => {
+    res.sendFile(path.join(__dirname, 'simple_game.html'));
+});
+
+
+// POST route to handle user registration
+app.post('/signup', (req, res) => {
+    const { name, username, email, password } = req.body;
+    
+    if (!username || !password) {
+        return res.status(400).send("Registration failed: Missing username or password.");
+    }
+    
+    // --- AUTH/DB Placeholder ---
+    // Here, you would typically check if the user exists and store the new user.
+    console.log(`User registration attempt successful for: ${username}. Redirecting to login.`);
+    // ---------------------------
+    
+    // CRITICAL: Always send a response/redirect
+    res.redirect('/login'); 
+});
+
+
 app.post('/login', (req, res) => {
+    // Basic placeholder login logic
     const username = req.body.username || 'Guest';
+    // In a real app, you'd check credentials and assign a persistent session ID
     const userId = 'user_' + Math.random().toString(36).substring(2, 8);
     res.redirect(`/?userId=${userId}`); 
 });
 
 app.get('/logout', (req, res) => {
+    // Session cleanup logic would go here
     res.redirect('/login');
 });
 
 // --- 6. SOCKET.IO EVENT HANDLERS ---
 
 io.on('connection', (socket) => {
+    // Note: Authentication relies on query parameter which is weak security
     const userId = socket.handshake.query.userId;
     let username = 'Guest'; 
     
