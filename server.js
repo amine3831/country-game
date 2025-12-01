@@ -1,4 +1,4 @@
-// server.js (FINAL UNIFIED CODE WITH CONFUSION GROUP LOGIC FIX)
+// server.js (FINAL ROBUST CODE)
 
 // --- 1. CORE IMPORTS & SERVER SETUP ---
 const path = require('path');
@@ -11,10 +11,10 @@ const app = express();
 const server = http.createServer(app);
 const io = socketio(server);
 
-// --- 2. DATA LOADING (CRITICAL FIX: Scope, Import, Key Mapping, and Reverse Map) ---
+// --- 2. DATA LOADING (CRITICAL FIX: Robust Groups Import and Reverse Map) ---
 let flagData = []; 
 let CONFUSION_GROUPS_MAP = {}; 
-let CONFUSION_GROUP_REVERSE_MAP = {}; // <-- NEW: Reverse map to look up group names by country name
+let CONFUSION_GROUP_REVERSE_MAP = {}; 
 
 try {
     const rawFlagData = require('./flag_data.json'); 
@@ -27,25 +27,35 @@ try {
     }));
     
     // Correct import of the groups map
-    CONFUSION_GROUPS_MAP = require('./groups');
+    let importedGroups = require('./groups');
+
+    // --- NEW ROBUSTNESS CHECK ---
+    // Handle cases where 'groups.js' might export an object wrapping the actual map.
+    if (typeof importedGroups === 'object' && importedGroups !== null && !Array.isArray(importedGroups)) {
+        // Find the deepest object that looks like the groups map
+        CONFUSION_GROUPS_MAP = importedGroups.CONFUSION_GROUPS_MAP || importedGroups.groups || importedGroups;
+    }
+    // ----------------------------
     
-    // --- NEW LOGIC: BUILD REVERSE MAP ---
-    // This allows us to find the group name (key) given a country name (value).
+    if (Object.keys(CONFUSION_GROUPS_MAP).length === 0) {
+         console.error("⚠️ WARNING: CONFUSION_GROUPS_MAP is empty after import. Check groups.js export format.");
+    }
+    
+    // --- BUILD REVERSE MAP ---
     for (const groupName in CONFUSION_GROUPS_MAP) {
         if (CONFUSION_GROUPS_MAP.hasOwnProperty(groupName)) {
             const countriesInGroup = CONFUSION_GROUPS_MAP[groupName];
-            countriesInGroup.forEach(country => {
-                // Map the country name back to the group name
-                CONFUSION_GROUP_REVERSE_MAP[country] = groupName;
-            });
+            if (Array.isArray(countriesInGroup)) { // Safety check
+                countriesInGroup.forEach(country => {
+                    CONFUSION_GROUP_REVERSE_MAP[country] = groupName;
+                });
+            }
         }
     }
-    // -------------------------------------
+    // -------------------------
     
-    console.log(`✅ Data loaded: ${flagData.length} flags.`);
-    if (flagData.length === 0) {
-         console.error("⚠️ WARNING: flag_data.json is empty.");
-    }
+    console.log(`✅ Data loaded: ${flagData.length} flags. Groups loaded: ${Object.keys(CONFUSION_GROUPS_MAP).length} groups.`);
+
 } catch (error) {
     console.error("❌ CRITICAL ERROR: Failed to load game data or groups map. Game will not function:", error.message);
 }
@@ -65,7 +75,7 @@ app.use(express.static(path.join(__dirname)));
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
-// --- 4. UTILITY FUNCTIONS (UPDATED generateQuizOptions) ---
+// --- 4. UTILITY FUNCTIONS ---
 
 function shuffleArray(array) {
     for (let i = array.length - 1; i > 0; i--) {
@@ -89,13 +99,13 @@ function generateQuizOptions(correctCountry) {
     const options = [correctCountry];
     
     // Defensive check
-    if (typeof CONFUSION_GROUPS_MAP !== 'object' || CONFUSION_GROUPS_MAP === null) {
-         console.error("CRITICAL DATA ERROR: CONFUSION_GROUPS_MAP is invalid. Using random fallback.");
+    if (Object.keys(CONFUSION_GROUPS_MAP).length === 0) {
+         console.error("CRITICAL DATA ERROR: CONFUSION_GROUPS_MAP is empty. Using random fallback.");
          const allCountries = flagData.map(f => f.country);
          return selectUniqueRandom(allCountries, 4);
     }
     
-    // --- REVISED LOGIC: Use the reverse map to find the correct group ---
+    // Use the reverse map to find the correct group
     const groupName = CONFUSION_GROUP_REVERSE_MAP[correctCountry];
     
     let confusionGroupCountries = null;
@@ -105,15 +115,13 @@ function generateQuizOptions(correctCountry) {
     }
     
     if (confusionGroupCountries && Array.isArray(confusionGroupCountries)) {
-        // Try to pull 3 options from the confusion group, excluding the correct answer
-        // Use a filter to remove the correct answer from the source pool 
+        // Attempt to pull 3 options from the confusion group
         const groupOptions = selectUniqueRandom(confusionGroupCountries, 3, options);
         options.push(...groupOptions);
     }
-    // --- END REVISED LOGIC ---
 
 
-    // 3. Fill remaining options with random countries (Fallback/Fill)
+    // Fill remaining options with random countries (Fallback/Fill)
     const needed = 4 - options.length;
     if (needed > 0 && flagData.length > 0) {
         const allCountries = flagData.map(f => f.country);
@@ -121,7 +129,7 @@ function generateQuizOptions(correctCountry) {
         options.push(...randomOptions);
     }
     
-    // Safety check: ensure 4 unique options
+    // Return 4 unique, shuffled options
     return shuffleArray([...new Set(options)]).slice(0, 4); 
 }
 
