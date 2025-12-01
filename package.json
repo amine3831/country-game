@@ -2,7 +2,7 @@
   "name": "online-flag-quiz",
   "version": "1.0.0",
   "description": "A 3-round multiplayer flag quiz using WebSockets.",
-  "main": "server.js",
+  "main": "server_game_modes.js",
   "scripts": {
     "start": "node server.js"
   },
