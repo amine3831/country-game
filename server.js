@@ -1,4 +1,4 @@
-// server.js (COMPLETE UNIFIED CODE with Data Check)
+// server.js (COMPLETE UNIFIED CODE with Scope Fixed)
 
 // --- 1. CORE IMPORTS & SERVER SETUP ---
 const path = require('path');
@@ -11,12 +11,12 @@ const app = express();
 const server = http.createServer(app);
 const io = socketio(server);
 
-// --- 2. DATA LOADING (CRITICAL SECTION) ---
-let flagData = [];
-let CONFUSION_GROUPS_MAP = {};
+// --- 2. DATA LOADING (CRITICAL FIX: Declare variables globally) ---
+let flagData = []; // Declared globally
+let CONFUSION_GROUPS_MAP = {}; // Declared globally
 
 try {
-    // Note: require() loads the JSON file into the flagData variable
+    // The variables are ASSIGNED here, making them accessible everywhere below
     flagData = require('./flag_data.json'); 
     const groupsModule = require('./groups');
     CONFUSION_GROUPS_MAP = groupsModule.CONFUSION_GROUPS_MAP || {};
@@ -26,8 +26,7 @@ try {
          console.error("⚠️ WARNING: flag_data.json is empty.");
     }
 } catch (error) {
-    console.error("❌ CRITICAL ERROR: Failed to load game data (flag_data.json or groups.js). Server will start but game won't function:", error.message);
-    // Continue running, but flagData will be empty, which the code handles below
+    console.error("❌ CRITICAL ERROR: Failed to load game data (flag_data.json or groups.js). Game will not function:", error.message);
 }
 
 
@@ -173,7 +172,7 @@ io.on('connection', (socket) => {
     // A. Start Simple Game Session (triggered when user lands on simple_game.html)
     socket.on('start_simple_session', () => {
         
-        // --- CRITICAL CHECK ADDED HERE ---
+        // --- CRITICAL CHECK ---
         if (!flagData || flagData.length === 0) {
             console.error("FATAL ERROR: flagData is empty or not loaded. Cannot start game.");
             // Notify client to prevent indefinite stall
