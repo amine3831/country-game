@@ -1,7 +1,6 @@
-// main_game_logic.js
+// main_game_logic.js - Handles only the Multiplayer Match Flow
 
 // --- 1. GLOBAL GAME STATE VARIABLES ---
-// These variables manage the current state of the game on the client side.
 let currentMatchId = null;
 let isAnswered = false; // Prevents spamming answer button
 let roundStartTime = 0; 
@@ -10,7 +9,6 @@ let opponentScore = 0;
 let isP1 = false; // Crucial for mapping scores from p1Score/p2Score
 
 // --- 2. ELEMENT REFERENCES ---
-// Elements are referenced here once at the start.
 const gameContainerEl = document.getElementById('game-container');
 const statusEl = document.getElementById('status');
 const roundDisplayEl = document.getElementById('round-display');
@@ -27,18 +25,18 @@ const scoreboardContainerEl = document.getElementById('scoreboard-container');
 
 /**
  * Resets the UI, showing or hiding the main quiz elements based on the game state.
- * It's called when transitioning between the menu, waiting, and active game screens.
  * @param {boolean} showRoundDisplay - True to show quiz elements (active round), False otherwise.
  */
 function resetUI(showRoundDisplay = true) {
     // Clear all dynamic content
     optionsContainerEl.innerHTML = '';
-    flagImageEl.src = 'data:image/gif;base64,R0GODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'; // Blank image placeholder
+    flagImageEl.src = 'data:image/gif;base64,R0GODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'; 
     resultMessageEl.textContent = '';
     playerTimeEl.textContent = 'YOU: --';
     opponentTimeEl.textContent = 'OPPONENT: --';
     
     // List of elements that are part of the active quiz UI
+    // Note: The time-display div must be shown for multiplayer, unlike simple_game
     const elementsToToggle = [
         roundDisplayEl, flagImageEl, optionsContainerEl, 
         resultMessageEl, playerTimeEl.parentElement, scoreboardContainerEl
@@ -46,35 +44,38 @@ function resetUI(showRoundDisplay = true) {
 
     // Hide/Show elements based on stage
     elementsToToggle.forEach(el => {
+        // Show options-container as flex, others as block/default
         if (el) el.style.display = showRoundDisplay ? (el.id === 'options-container' ? 'flex' : 'block') : 'none';
     });
     
-    // Hide the main title (H1) during an active game
-    document.querySelector('h1').style.display = showRoundDisplay ? 'none' : 'flex';
-
     // Manage container centering for menu/waiting states
     if (showRoundDisplay) {
-        // Game is active: Use default top-down flow
+        // Game is active: Hide title, remove centering
+        document.querySelector('h1').style.display = 'none';
         gameContainerEl.classList.remove('centered-status');
-        statusEl.style.display = 'flex'; // Status may still show 'Go!'
+        statusEl.style.display = 'flex'; 
     } else {
-        // Menu, Waiting, or Game Over screen: Center the remaining visible element
+        // Menu, Waiting, or Game Over screen: Show title, center content
+        document.querySelector('h1').style.display = 'flex';
         gameContainerEl.classList.add('centered-status');
         
-        // If the menu is showing (controlled by client_auth_menu.js), hide status
+        // Hide status if the menu is visible (handled by client_auth_menu.js)
         const modeSelectionEl = document.getElementById('mode-selection');
         if (modeSelectionEl && modeSelectionEl.style.display === 'flex') {
             statusEl.style.display = 'none';
         } else {
              statusEl.style.display = 'flex'; // Show status while waiting
         }
+        
+        // Ensure scoreboard labels are correct for multiplayer
+        document.querySelector('#player-score-container .label').textContent = 'YOU';
+        document.querySelector('#opponent-score-container .label').textContent = 'OPPONENT';
     }
 }
 
-// --- 4. SOCKET LISTENERS (Game Flow) ---
+// --- 4. SOCKET LISTENERS (Multiplayer Flow) ---
 
-// Note: socket.on('connect'), socket.on('auth_successful'), and socket.on('unauthorized_access') 
-// are all handled by client_auth_menu.js
+// Handlers for connect/auth are in client_auth_menu.js
 
 socket.on('waiting_for_opponent', () => {
     statusEl.textContent = '⏱️ Searching for opponent...';
@@ -93,16 +94,9 @@ socket.on('match_found', (data) => {
     playerScoreEl.textContent = myScore;
     opponentScoreEl.textContent = opponentScore;
     
-    // Clear status message once game starts
     setTimeout(() => {
         statusEl.textContent = '';
     }, 3000); 
-});
-
-// Listener for the single-player mode start confirmation
-socket.on('computer_game_starting', (data) => {
-    statusEl.textContent = data.message;
-    // In a full implementation, this would trigger a dedicated single-player round flow
 });
 
 socket.on('new_round', (data) => {
@@ -140,13 +134,11 @@ socket.on('answer_registered', (data) => {
     const timeTaken = data.timeElapsed;
     
     if (data.isOpponent) {
-        // This event is about the OPPONENT's answer
         opponentTimeEl.textContent = `OPPONENT: ${timeTaken.toFixed(2)}s`;
         resultMessageEl.textContent = 'Opponent answered! You must answer now.';
         resultMessageEl.style.color = getCssVar('--text-color');
         
     } else {
-        // This event is about the LOCAL PLAYER's answer
         playerTimeEl.textContent = `YOU: ${timeTaken.toFixed(2)}s`;
         resultMessageEl.textContent = '✅ Answer Submitted! Waiting for opponent...';
         resultMessageEl.style.color = getCssVar('--primary-color');
@@ -167,13 +159,13 @@ socket.on('round_results', (data) => {
     playerScoreEl.textContent = localScore;
     opponentScoreEl.textContent = oppScore;
 
-    // --- Time Display Fix ---
+    // Time Display Fix
     const localTime = isP1 ? data.p1Time : data.p2Time;
     const oppTime = isP1 ? data.p2Time : data.p1Time;
 
     if (localTime === Infinity) {
          playerTimeEl.textContent = `YOU: Missed`;
-    } else if (!playerTimeEl.textContent.includes('Submitting')) { // Only update if not already submitted
+    } else if (!playerTimeEl.textContent.includes('Submitting')) {
          playerTimeEl.textContent = `YOU: ${localTime.toFixed(2)}s`;
     }
     
@@ -182,7 +174,7 @@ socket.on('round_results', (data) => {
     } else if (!opponentTimeEl.textContent.includes('Submitting')) {
         opponentTimeEl.textContent = `OPPONENT: ${oppTime.toFixed(2)}s`;
     }
-    // --- End Time Display Fix ---
+    // End Time Display Fix
 
     // Style buttons based on result
     optionButtons.forEach(button => {
@@ -261,7 +253,7 @@ socket.on('opponent_disconnected', (message) => {
 // --- 5. USER INPUT HANDLER ---
 
 /**
- * Handles the player's answer selection.
+ * Handles the player's answer selection (Multiplayer only).
  * @param {string} answer - The country name selected.
  * @param {HTMLElement} selectedButton - The button element clicked.
  */
@@ -280,7 +272,7 @@ function handleAnswer(answer, selectedButton) {
         }
     });
     
-    // Send answer to server
+    // Send answer to server (Multiplayer event)
     socket.emit('submit_answer', {
         matchId: currentMatchId,
         answer: answer
