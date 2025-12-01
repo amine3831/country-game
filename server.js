@@ -1,25 +1,33 @@
-// server.js (COMPLETE UNIFIED CODE with Debugging)
+// server.js (COMPLETE UNIFIED CODE with Data Check)
 
 // --- 1. CORE IMPORTS & SERVER SETUP ---
 const path = require('path');
 const express = require('express');
 const http = require('http');
 const socketio = require('socket.io');
-const fs = require('fs'); // Included in case it's used elsewhere, but not strictly needed for the main logic
+const fs = require('fs');
 
 const app = express();
 const server = http.createServer(app);
 const io = socketio(server);
 
 // --- 2. DATA LOADING (CRITICAL SECTION) ---
+let flagData = [];
+let CONFUSION_GROUPS_MAP = {};
+
 try {
-    // Assuming flag_data.json and groups.js are in the same directory
-    const flagData = require('./flag_data.json'); 
-    const { CONFUSION_GROUPS_MAP } = require('./groups'); // Assuming groups.js exports this
+    // Note: require() loads the JSON file into the flagData variable
+    flagData = require('./flag_data.json'); 
+    const groupsModule = require('./groups');
+    CONFUSION_GROUPS_MAP = groupsModule.CONFUSION_GROUPS_MAP || {};
+    
     console.log(`✅ Data loaded: ${flagData.length} flags.`);
+    if (flagData.length === 0) {
+         console.error("⚠️ WARNING: flag_data.json is empty.");
+    }
 } catch (error) {
-    console.error("❌ CRITICAL ERROR: Failed to load game data (flag_data.json or groups.js). Server will crash:", error.message);
-    process.exit(1); // Exit if data is missing, which is a fatal error
+    console.error("❌ CRITICAL ERROR: Failed to load game data (flag_data.json or groups.js). Server will start but game won't function:", error.message);
+    // Continue running, but flagData will be empty, which the code handles below
 }
 
 
@@ -28,7 +36,7 @@ try {
 const users = {}; 
 let waitingPlayer = null; 
 const activeMatches = {};  
-const simpleGames = {}; // Track active simple games { socketId: { matchId, currentStreak, highScore, matchQuestions, ... } }
+const simpleGames = {}; 
 const MAX_ROUNDS = 10;
 const ROUND_TIME_LIMIT_MS = 10000;
 
@@ -68,7 +76,7 @@ function generateQuizOptions(correctCountry) {
 
     // 2. Fill remaining options with random countries
     const needed = 4 - options.length;
-    if (needed > 0) {
+    if (needed > 0 && flagData.length > 0) {
         const allCountries = flagData.map(f => f.country);
         const randomOptions = selectUniqueRandom(allCountries, needed, options);
         options.push(...randomOptions);
@@ -85,15 +93,15 @@ function startSimpleGameRound(playerId) {
         console.error(`ERROR: Game object not found for playerId: ${playerId}`);
         return;
     }
-
-    // Move to the next question
-    game.currentQuestionIndex++;
     
-    // Safety check: Avoid index issues if matchQuestions is somehow empty
+    // Safety check: Avoid index issues if matchQuestions is empty
     if (game.matchQuestions.length === 0) {
          console.error("DATA ERROR: matchQuestions is empty! Cannot start round.");
          return;
     }
+
+    // Move to the next question
+    game.currentQuestionIndex++;
     
     const questionIndex = game.currentQuestionIndex % game.matchQuestions.length; 
     const currentQuestion = game.matchQuestions[questionIndex];
@@ -152,6 +160,7 @@ io.on('connection', (socket) => {
     
     // Auth Check
     if (!userId) {
+        console.error("Authentication Failed: userId missing from socket query. Disconnecting socket.");
         socket.emit('unauthorized_access');
         return socket.disconnect(true);
     }
@@ -163,6 +172,16 @@ io.on('connection', (socket) => {
 
     // A. Start Simple Game Session (triggered when user lands on simple_game.html)
     socket.on('start_simple_session', () => {
+        
+        // --- CRITICAL CHECK ADDED HERE ---
+        if (!flagData || flagData.length === 0) {
+            console.error("FATAL ERROR: flagData is empty or not loaded. Cannot start game.");
+            // Notify client to prevent indefinite stall
+            socket.emit('server_error', { message: "Game data is unavailable on the server. Check server logs." });
+            return; 
+        }
+        // ---------------------------------
+
         if (simpleGames[socket.id]) {
             delete simpleGames[socket.id]; 
         }
