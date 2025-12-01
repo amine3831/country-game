@@ -4,317 +4,304 @@
     <title>Flag Quiz Online</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
-        /* ... Your complete CSS styles are here ... */
+        /* Apply box-sizing globally to ensure margins/padding don't increase the total height */
+        * {
+            box-sizing: border-box;
+        }
+
+        /* === 1. FULL-SCREEN DESIGN & NO SCROLL === */
+        :root {
+            --primary-color: #3f51b5; /* Indigo */
+            --secondary-color: #ff9800; /* Orange - Selected Answer */
+            --success-color: #4caf50; /* Green - Correct Answer */
+            --error-color: #f44336; /* Red - Incorrect Answer */
+            --text-color: #333;
+            --bg-gradient: linear-gradient(to bottom, #d2e3f4, #f8f9fa); 
+        }
+
+        body { 
+            font-family: 'Arial', sans-serif; 
+            text-align: center; 
+            background: var(--bg-gradient); 
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column; /* Allows header at the top */
+            justify-content: flex-start;
+            align-items: center; 
+            height: 100vh;
+            width: 100vw;
+            color: var(--text-color);
+            font-size: 16px; 
+            overflow: hidden; /* Ensures no scrollbar is ever visible */
+        }
+        
+        /* NEW: Style for the header */
+        header {
+            padding: 10px; 
+            border-bottom: 1px solid #ccc; 
+            width: 100%; 
+            background: white;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        #game-container { 
+            width: 100%; 
+            height: calc(100vh - 40px); /* Adjusted height to account for the header */
+            margin: 0 auto; 
+            padding: 0; 
+            display: flex; 
+            flex-direction: column;
+            background-color: transparent; 
+        }
+
+        /* FIX: Centers content when only the status/menu message is visible */
+        #game-container.centered-status {
+            justify-content: center;
+            align-items: center; 
+        }
+
+        /* === NEW: MENU STYLES === */
+        .menu-button {
+            width: 100%;
+            padding: 15px;
+            margin-bottom: 15px;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 5vw; 
+            cursor: pointer;
+            box-shadow: 0 4px #303f9f;
+            transition: background-color 0.3s;
+        }
+        .menu-button:hover {
+            background-color: #303f9f;
+        }
+        
+        /* === 2. PRECISE 100vh FLOW LAYOUT (Adjusted percentages for remaining space) === */
+        
+        h1 {
+            color: var(--primary-color);
+            font-size: 6vw; 
+            height: 8vh; 
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin: 0; 
+            margin-bottom: 1vh; 
+            padding: 0 3vw; 
+            background-color: transparent; 
+        }
+
+        #status {
+            height: 7vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-weight: bold;
+            font-size: 5vw; 
+            width: 100%;
+            margin: 0;
+            margin-bottom: 1vh; 
+            padding: 0 3vw;
+            background-color: transparent; 
+        }
+
+        #round-display {
+            height: 7vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 5vw; 
+            margin: 0;
+            margin-bottom: 1vh; 
+            padding: 0 3vw;
+            background-color: transparent; 
+        }
+
+        .flag-image { 
+            max-height: 20vh; 
+            width: 90%; 
+            margin: 0 auto; 
+            object-fit: contain; 
+            border-radius: 8px; 
+            background-color: transparent;
+            margin-bottom: 1vh; 
+        }
+        
+        #options-container {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            width: 90%; 
+            height: auto; 
+            margin: 0 auto; 
+            padding: 0 3vw; 
+        }
+        
+        .option-button { 
+            height: 6vh; 
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 0 1vw; 
+            margin: 0.5vh 0.5vh 1vh 0.5vh; 
+            cursor: pointer; 
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 4.5vw; 
+            transition: background-color 0.3s, transform 0.1s;
+            width: calc(50% - 1vh); /* Forces 2 per row */
+            box-shadow: 0 3px #303f9f; 
+            white-space: nowrap; 
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        
+        .option-button:hover:not(:disabled) {
+            background-color: #303f9f;
+            transform: translateY(-2px);
+            box-shadow: 0 5px #303f9f;
+        }
+        .option-button:disabled {
+            background-color: #ccc; 
+            cursor: default;
+            box-shadow: none;
+        }
+        .option-button.correct {
+            background-color: var(--success-color) !important;
+            box-shadow: 0 3px #388e3c !important; 
+        }
+        .option-button.incorrect {
+            background-color: var(--error-color) !important;
+            opacity: 0.5; 
+            box-shadow: none !important;
+        }
+        .option-button.selected {
+            background-color: var(--secondary-color) !important; 
+            box-shadow: 0 0 8px 3px var(--secondary-color) !important;
+            transform: scale(1.05);
+        }
+
+        #result-message {
+            height: 10vh; 
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-weight: bold;
+            font-size: 5vw; 
+            width: 100%;
+            margin: 0;
+            margin-bottom: 1vh; 
+            padding: 0 3vw;
+            background-color: transparent; 
+        }
+
+        #time-display {
+            height: 7vh;
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            font-style: italic;
+            font-size: 4vw; 
+            width: 100%;
+            font-weight: bold;
+            margin: 0;
+            margin-bottom: 1vh; 
+            padding: 0 3vw;
+            background-color: transparent; 
+        }
+
+        .score-board { 
+            height: 8vh; 
+            background-color: transparent; 
+            display: flex; 
+            width: 90%;
+            max-width: 450px; 
+            margin: 0 auto; 
+            padding: 1vh 0; 
+            border: 2px solid #333; 
+            border-radius: 8px;
+            overflow: hidden; 
+        }
+
+        .score-board span {
+            flex-grow: 1;
+            padding: 0; 
+            font-weight: bold;
+            font-size: 4.5vw; 
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .score-board .label {
+            font-size: 3vw;
+            font-weight: normal;
+        }
+
+        #player-score-container { 
+            color: white;
+            background-color: var(--primary-color); 
+            border-right: 2px solid #333; 
+        }
+        
+        #opponent-score-container { 
+            color: var(--text-color);
+            background-color: white; 
+        }
     </style>
 </head>
 
-<header style="padding: 10px; border-bottom: 1px solid #ccc;">
-    <span id="welcome-message">Welcome, Guest!</span> 
-    <a href="/logout" style="float: right; color: red;">Logout</a>
-</header>
 <body>
 
+<header>
+    <span id="welcome-message">Welcome, Guest!</span> 
+    <a href="/logout" style="color: var(--error-color); text-decoration: none; font-weight: bold;">Logout</a>
+</header>
 <div id="game-container">
     
+    <h1>🌍 Flag Quiz: Fast Lane</h1>
+
+    <div id="status">Connecting to server...</div>
+
+    <div id="round-display"></div>
+
+    <img id="current-flag" class="flag-image" src="data:image/gif;base64,R0GODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" alt="Flag to guess">
+
+    <div id="options-container">
+        </div>
+
+    <p id="result-message"></p>
+
+    <div id="time-display">
+        <span id="player-time">YOU: --</span>
+        <span id="opponent-time">OPPONENT: --</span>
     </div>
+
+    <div class="score-board" id="scoreboard-container">
+        <span id="player-score-container">
+            <span id="player-score">0</span>
+            <span class="label">YOU</span>
+        </span>
+        <span id="opponent-score-container">
+            <span id="opponent-score">0</span>
+            <span class="label">OPPONENT</span>
+        </span>
+    </div>
+
+</div>
 
 <script src="/socket.io/socket.io.js"></script>
 
-<script>
-    // --- AUTHENTICATION START ---
-    
-    // Helper function to get URL parameters
-    function getQueryParameter(name) {
-        const urlParams = new URLSearchParams(window.location.search);
-        return urlParams.get(name);
-    }
+<script src="client_auth_menu.js"></script>
 
-    const userId = getQueryParameter('userId');
-
-    // 1. Check for Authentication
-    if (!userId) {
-        // If the userId is missing, redirect the user to login page
-        alert("Please log in to play the game.");
-        window.location.href = '/login';
-        // Stop script execution
-        throw new Error("Unauthenticated access."); 
-    }
-
-    // 2. Dynamic Socket Connection (required for Render)
-    // Get the base URL (e.g., https://your-render-app.onrender.com)
-    const RENDER_URL = window.location.protocol + "//" + window.location.host;
-
-    // Connect, passing the userId in the query parameter
-    const socket = io(RENDER_URL, {
-        query: {
-            userId: userId // Sends the ID to the server's handshake
-        }
-    });
-
-    // 3. Socket Listeners for Auth
-    socket.on('connect', () => {
-        // Hide userId from the URL after successful connection
-        history.replaceState(null, '', window.location.pathname); 
-        
-        statusEl.textContent = '✅ Connected. Authenticating...';
-        statusEl.style.color = getCssVar('--text-color');
-        resetUI(false);
-    });
-
-    socket.on('auth_successful', (data) => {
-        // Server confirmed the ID is valid and sent the username
-        document.getElementById('welcome-message').textContent = `Welcome, ${data.username}!`;
-        console.log(`Authenticated as ${data.username}. Searching for an opponent...`);
-        
-        // Now proceed to the main matchmaking status
-        statusEl.textContent = '⏱️ Searching for opponent...';
-        statusEl.style.color = getCssVar('--text-color');
-    });
-
-    socket.on('unauthorized_access', () => {
-        // Fallback if the server specifically rejects the userId
-        alert("Authentication failed. Redirecting to login.");
-        window.location.href = '/login';
-    });
-
-    // --- END AUTHENTICATION ---
-
-
-    let currentMatchId = null;
-    let isAnswered = false;
-    let roundStartTime = 0; 
-    let myScore = 0;
-    let opponentScore = 0;
-    let isP1 = false; 
-
-    // --- ELEMENT REFERENCES (No change, but ensuring they are below the auth logic) ---
-    // Using window.onload or DOMContentLoaded is safer for fetching these, 
-    // but since the script is at the end of the body, it should be fine.
-    const gameContainerEl = document.getElementById('game-container');
-    const statusEl = document.getElementById('status');
-    const roundDisplayEl = document.getElementById('round-display');
-    const flagImageEl = document.getElementById('current-flag');
-    const optionsContainerEl = document.getElementById('options-container');
-    const resultMessageEl = document.getElementById('result-message');
-    let playerScoreEl = document.getElementById('player-score'); 
-    let opponentScoreEl = document.getElementById('opponent-score'); 
-    const playerTimeEl = document.getElementById('player-time');
-    const opponentTimeEl = document.getElementById('opponent-time');
-    const scoreboardContainerEl = document.getElementById('scoreboard-container');
-    
-    // Helper to get CSS variables
-    function getCssVar(name) {
-        return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-    }
-
-
-    // --- VISUAL/STATE MANAGEMENT (Minor Fixes) ---
-
-    function resetUI(showRoundDisplay = true) {
-        // ... (Your existing resetUI logic) ...
-        optionsContainerEl.innerHTML = '';
-        flagImageEl.src = 'data:image/gif;base64,R0GODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'; 
-        resultMessageEl.textContent = '';
-        playerTimeEl.textContent = 'YOU: --';
-        opponentTimeEl.textContent = 'OPPONENT: --';
-        
-        scoreboardContainerEl.classList.remove('final-board');
-        
-        const finalMessage = document.getElementById('final-score-message');
-        if (finalMessage) {
-            finalMessage.remove();
-        }
-        
-        const titleEl = document.querySelector('h1');
-        
-        // Hide elements that aren't needed when waiting
-        const elementsToToggle = [roundDisplayEl, flagImageEl, optionsContainerEl, resultMessageEl, playerTimeEl.parentElement, scoreboardContainerEl];
-        
-        elementsToToggle.forEach(el => {
-            el.style.display = showRoundDisplay ? (el.id === 'options-container' ? 'flex' : 'block') : 'none';
-        });
-
-        // H1 and status are always visible (except when game is active for H1)
-        titleEl.style.display = showRoundDisplay ? 'none' : 'flex';
-        statusEl.style.display = 'flex'; // Status should always be visible when waiting
-        
-        // --- CRITICAL ALIGNMENT CHANGE ---
-        if (showRoundDisplay) {
-            gameContainerEl.classList.remove('centered-status');
-        } else {
-            gameContainerEl.classList.add('centered-status');
-        }
-        // ***********************
-    }
-    
-    // --- SOCKET LISTENERS (Removed 'connect' logic that is now in Auth section) ---
-    
-    // socket.on('connect' logic is now handled above for authentication status
-
-    socket.on('waiting_for_opponent', () => {
-        statusEl.textContent = '⏱️ Searching for opponent...';
-        statusEl.style.color = getCssVar('--text-color');
-        resetUI(false);
-    });
-
-    socket.on('match_found', (data) => {
-        currentMatchId = data.matchId;
-        isP1 = data.isP1; 
-        statusEl.textContent = '🤝 Match Found! Getting ready...';
-        
-        myScore = 0;
-        opponentScore = 0;
-        playerScoreEl.textContent = myScore;
-        opponentScoreEl.textContent = opponentScore;
-        
-        setTimeout(() => {
-            statusEl.textContent = ''; // Clear status just before round starts
-        }, 1500); 
-    });
-    
-    // ... (rest of your existing socket.on('new_round') logic is fine) ...
-
-    socket.on('new_round', (data) => {
-        // ******* CRITICAL FIX: Ensure the round scoreboard structure is restored *******
-        // Restore elements that might have been overwritten by endGame()
-        document.getElementById('player-score-container').innerHTML = `
-            <span id="player-score">${myScore}</span>
-            <span class="label">YOU</span>
-        `;
-        document.getElementById('opponent-score-container').innerHTML = `
-            <span id="opponent-score">${opponentScore}</span>
-            <span class="label">OPPONENT</span>
-        `;
-        
-        // Re-assign element references after innerHTML changes
-        playerScoreEl = document.getElementById('player-score');
-        opponentScoreEl = document.getElementById('opponent-score');
-        
-        // ... (rest of new_round logic is fine) ...
-        isAnswered = false;
-        resetUI(true); // Show quiz elements
-        
-        roundStartTime = Date.now(); 
-        
-        statusEl.textContent = 'Go!';
-        statusEl.style.color = getCssVar('--text-color');
-        roundDisplayEl.textContent = `▶️ Round ${data.round}`;
-        flagImageEl.src = data.image;
-
-        // Reset button colors and enable them
-        optionsContainerEl.querySelectorAll('.option-button').forEach(btn => {
-            btn.classList.remove('correct', 'incorrect', 'selected');
-            btn.disabled = false;
-        });
-        
-        // Populate options
-        data.options.forEach(optionText => {
-            const button = document.createElement('button');
-            button.className = 'option-button';
-            button.textContent = optionText;
-            button.onclick = () => handleAnswer(optionText, button);
-            optionsContainerEl.appendChild(button);
-        });
-        
-        resultMessageEl.textContent = 'Select the correct country!';
-        resultMessageEl.style.color = getCssVar('--text-color');
-    });
-
-    // ... (rest of your existing socket.on('answer_registered') logic is fine) ...
-
-    // ... (rest of your existing socket.on('round_results') logic is fine) ...
-
-    socket.on('game_over', (data) => {
-        // ... (Your existing game_over logic) ...
-        
-        statusEl.style.display = 'flex';
-        roundDisplayEl.style.display = 'none';
-        flagImageEl.style.display = 'none';
-        optionsContainerEl.style.display = 'none';
-        resultMessageEl.style.display = 'none';
-        playerTimeEl.parentElement.style.display = 'none';
-        
-        gameContainerEl.classList.add('centered-status'); // Center the final result
-        
-        // --- 1. Determine Winner and Message ---
-        const myId = socket.id;
-        const winnerId = data.winner;
-        let message = '';
-        let color = getCssVar('--text-color');
-
-        if (winnerId === myId) {
-            message = '👑 YOU WIN! Congratulations!';
-            color = getCssVar('--success-color');
-        } else if (winnerId) {
-            message = '💔 GAME OVER. Opponent Wins.';
-            color = getCssVar('--player-2-color');
-        } else {
-            message = '🤝 It\'s a DRAW!';
-            color = getCssVar('--primary-color');
-        }
-
-        statusEl.textContent = message;
-        statusEl.style.color = color;
-
-        // --- 2. Update Scoreboard to Final Mode ---
-        scoreboardContainerEl.classList.add('final-board');
-        scoreboardContainerEl.style.display = 'flex'; // Ensure scoreboard is visible
-
-        const localScore = isP1 ? data.p1Score : data.p2Score;
-        const oppScore = isP1 ? data.p2Score : data.p1Score;
-
-        // Create the final score message element *before* modifying the scoreboard innerHTML
-        const finalScoreMessageEl = document.createElement('p');
-        finalScoreMessageEl.id = 'final-score-message';
-        finalScoreMessageEl.textContent = `FINAL SCORE: ${localScore} - ${oppScore}`;
-        scoreboardContainerEl.insertAdjacentElement('beforebegin', finalScoreMessageEl);
-
-
-        document.getElementById('player-score-container').innerHTML = `
-            <div class="player-name"><span class="color-box" id="player-color-box"></span>YOU</div>
-            <span id="player-score">${localScore}</span>
-        `;
-        document.getElementById('opponent-score-container').innerHTML = `
-            <div class="player-name"><span class="color-box" id="opponent-color-box"></span>OPPONENT</div>
-            <span id="opponent-score">${oppScore}</span>
-        `;
-
-        // --- 3. Play Again Button ---
-        const playAgainButton = document.createElement('button');
-        playAgainButton.className = 'option-button'; // Reusing styling
-        playAgainButton.style.width = '80%';
-        playAgainButton.style.marginTop = '2vh';
-        playAgainButton.textContent = 'Play Again (Find New Match)';
-        playAgainButton.onclick = () => {
-            // Re-authenticate (since the socket will be disconnected/reused)
-            window.location.reload(); 
-        };
-        
-        // Append the button below the final scoreboard container
-        scoreboardContainerEl.insertAdjacentElement('afterend', playAgainButton);
-
-        currentMatchId = null;
-    });
-
-    // ... (rest of your existing handleAnswer logic is fine) ...
-    function handleAnswer(answerText, button) {
-        if (isAnswered) return;
-        isAnswered = true;
-
-        // Disable all buttons and mark selected one
-        optionsContainerEl.querySelectorAll('.option-button').forEach(btn => btn.disabled = true);
-        button.classList.add('selected');
-
-        // Estimate time taken from client perspective (used for display, server time is definitive)
-        const timeTaken = (Date.now() - roundStartTime) / 1000;
-        playerTimeEl.textContent = `YOU: ${timeTaken.toFixed(2)}s (Submitting...)`;
-
-        // Send the answer to the server
-        socket.emit('submit_answer', {
-            matchId: currentMatchId,
-            answer: answerText
-        });
-    }
-
-</script>
+<script src="main_game_logic.js"></script>
+</body>
 </html>
