@@ -1,4 +1,4 @@
-// server.js (COMPLETE UNIFIED CODE with Scope Fixed)
+// server.js (FINAL UNIFIED CODE)
 
 // --- 1. CORE IMPORTS & SERVER SETUP ---
 const path = require('path');
@@ -11,22 +11,29 @@ const app = express();
 const server = http.createServer(app);
 const io = socketio(server);
 
-// --- 2. DATA LOADING (CRITICAL FIX: Declare variables globally) ---
-let flagData = []; // Declared globally
-let CONFUSION_GROUPS_MAP = {}; // Declared globally
+// --- 2. DATA LOADING (CRITICAL FIX: Scope, Import, and Key Mapping) ---
+let flagData = []; 
+let CONFUSION_GROUPS_MAP = {}; 
 
 try {
-    // The variables are ASSIGNED here, making them accessible everywhere below
-    flagData = require('./flag_data.json'); 
-    const groupsModule = require('./groups');
-    CONFUSION_GROUPS_MAP = groupsModule.CONFUSION_GROUPS_MAP || {};
+    const rawFlagData = require('./flag_data.json'); 
+    
+    // FIX FOR BUG 1: Map 'correctAnswer' key to 'country' key
+    flagData = rawFlagData.map(item => ({
+        ...item,
+        country: item.correctAnswer, // Map the key
+        image: item.image, // Ensure image is present
+    }));
+    
+    // FIX FOR BUG 2: Correct import without destructuring
+    CONFUSION_GROUPS_MAP = require('./groups');
     
     console.log(`✅ Data loaded: ${flagData.length} flags.`);
     if (flagData.length === 0) {
          console.error("⚠️ WARNING: flag_data.json is empty.");
     }
 } catch (error) {
-    console.error("❌ CRITICAL ERROR: Failed to load game data (flag_data.json or groups.js). Game will not function:", error.message);
+    console.error("❌ CRITICAL ERROR: Failed to load game data or groups map. Game will not function:", error.message);
 }
 
 
@@ -59,15 +66,26 @@ function generateMatchId() {
 }
 
 function selectUniqueRandom(sourceArr, count, excludeArr = []) {
+    // Defensive check
+    if (!sourceArr || sourceArr.length === 0) return []; 
     const pool = sourceArr.filter(item => !excludeArr.includes(item));
     return shuffleArray(pool).slice(0, count);
 }
 
 function generateQuizOptions(correctCountry) {
     const options = [correctCountry];
+    
+    // Defensive check: Ensure CONFUSION_GROUPS_MAP is an object before accessing
+    if (typeof CONFUSION_GROUPS_MAP !== 'object' || CONFUSION_GROUPS_MAP === null) {
+         console.error("CRITICAL DATA ERROR: CONFUSION_GROUPS_MAP is invalid.");
+         // Fallback: Use all countries
+         const allCountries = flagData.map(f => f.country);
+         return selectUniqueRandom(allCountries, 4);
+    }
+    
     const group = CONFUSION_GROUPS_MAP[correctCountry];
 
-    if (group) {
+    if (group && Array.isArray(group)) {
         // 1. Try to pull 3 options from the confusion group
         const groupOptions = selectUniqueRandom(group, 3);
         options.push(...groupOptions);
@@ -106,8 +124,9 @@ function startSimpleGameRound(playerId) {
     const currentQuestion = game.matchQuestions[questionIndex];
     
     // --- DEBUG LOGS AND CHECKS ---
-    if (!currentQuestion || !currentQuestion.country || !currentQuestion.image) {
-        console.error("DATA ERROR: Current question is incomplete or undefined at index", questionIndex, currentQuestion);
+    // Final check for a valid country name before proceeding
+    if (!currentQuestion || typeof currentQuestion.country !== 'string' || currentQuestion.country.length === 0) {
+        console.error("DATA ERROR: Current question object is invalid or country name is missing.");
         return;
     }
     console.log(`[SIMPLE] Starting Round ${game.currentStreak + 1}. Flag: ${currentQuestion.country}`);
@@ -123,7 +142,6 @@ function startSimpleGameRound(playerId) {
         options: options
     });
 }
-// ... (Multiplayer: startGameRound, endGame, etc. functions would go here) ...
 
 
 // --- 5. EXPRESS ROUTES (Auth placeholders) ---
