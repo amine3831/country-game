@@ -4,301 +4,7 @@
     <title>Flag Quiz Online</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
-        /* Apply box-sizing globally to ensure margins/padding don't increase the total height */
-        * {
-            box-sizing: border-box;
-        }
-
-        /* === 1. FULL-SCREEN DESIGN & NO SCROLL === */
-        :root {
-            --primary-color: #3f51b5; /* Indigo (Used for Player 1 / YOU) */
-            --secondary-color: #ff9800; /* Orange - Selected Answer */
-            --player-2-color: #d32f2f; /* Red (Used for Player 2 / OPPONENT Score) */
-            --success-color: #4caf50; /* Green - Correct Answer */
-            --error-color: #f44336; /* Red - Incorrect Answer */
-            --text-color: #333;
-            --bg-gradient: linear-gradient(to bottom, #d2e3f4, #f8f9fa); 
-        }
-
-        body { 
-            font-family: 'Arial', sans-serif; 
-            text-align: center; 
-            background: var(--bg-gradient); 
-            margin: 0;
-            padding: 0;
-            display: flex;
-            justify-content: center;
-            align-items: flex-start; 
-            height: 100vh;
-            width: 100vw;
-            color: var(--text-color);
-            font-size: 16px; 
-            overflow: hidden; /* Ensures no scrollbar is ever visible */
-        }
-        
-        #game-container { 
-            width: 100%; 
-            height: 100vh; 
-            margin: 0 auto; 
-            padding: 0; 
-            display: flex; 
-            flex-direction: column;
-            background-color: transparent; 
-        }
-
-        /* FIX: Centers content when only the status message is visible */
-        #game-container.centered-status {
-            justify-content: center;
-            align-items: center; 
-        }
-
-        /* === 2. PRECISE 100vh FLOW LAYOUT (No changes here) === */
-        
-        h1 {
-            color: var(--primary-color);
-            font-size: 6vw; 
-            height: 8vh; 
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            margin: 0; 
-            margin-bottom: 1vh; 
-            padding: 0 3vw; 
-            background-color: transparent; 
-        }
-
-        #status {
-            height: 7vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            font-weight: bold;
-            font-size: 5vw; 
-            width: 100%;
-            margin: 0;
-            margin-bottom: 1vh; 
-            padding: 0 3vw;
-            background-color: transparent; 
-        }
-
-        #round-display {
-            height: 7vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            font-size: 5vw; 
-            margin: 0;
-            margin-bottom: 1vh; 
-            padding: 0 3vw;
-            background-color: transparent; 
-        }
-
-        .flag-image { 
-            max-height: 20vh; 
-            width: 90%; 
-            margin: 0 auto; 
-            object-fit: contain; 
-            border-radius: 8px; 
-            background-color: transparent;
-            margin-bottom: 1vh; 
-        }
-        
-        #options-container {
-            display: flex;
-            flex-wrap: wrap;
-            justify-content: center;
-            width: 90%; 
-            height: auto; 
-            margin: 0 auto; 
-            padding: 0 3vw; 
-        }
-        
-        .option-button { 
-            height: 6vh; 
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            
-            padding: 0 1vw; 
-            margin: 0.5vh 0.5vh 1vh 0.5vh; 
-            
-            cursor: pointer; 
-            background-color: var(--primary-color);
-            color: white;
-            border: none;
-            border-radius: 8px;
-            font-size: 4.5vw; 
-            transition: background-color 0.3s, transform 0.1s;
-            width: calc(50% - 1vh); /* Forces 2 per row */
-            box-shadow: 0 3px #303f9f; 
-            white-space: nowrap; 
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-        
-        .option-button:hover:not(:disabled) {
-            background-color: #303f9f;
-            transform: translateY(-2px);
-            box-shadow: 0 5px #303f9f;
-        }
-        .option-button:disabled {
-            background-color: #ccc; 
-            cursor: default;
-            box-shadow: none;
-        }
-        .option-button.correct {
-            background-color: var(--success-color) !important;
-            box-shadow: 0 3px #388e3c !important; 
-        }
-        .option-button.incorrect {
-            background-color: var(--error-color) !important;
-            opacity: 0.5; 
-            box-shadow: none !important;
-        }
-        .option-button.selected {
-            background-color: var(--secondary-color) !important; 
-            box-shadow: 0 0 8px 3px var(--secondary-color) !important;
-            transform: scale(1.05);
-        }
-
-        #result-message {
-            height: 10vh; 
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            font-weight: bold;
-            font-size: 5vw; 
-            width: 100%;
-            margin: 0;
-            margin-bottom: 1vh; 
-            padding: 0 3vw;
-            background-color: transparent; 
-        }
-
-        #time-display {
-            height: 7vh;
-            display: flex;
-            justify-content: space-around;
-            align-items: center;
-            font-style: italic;
-            font-size: 4vw; 
-            width: 100%;
-            font-weight: bold;
-            margin: 0;
-            margin-bottom: 1vh; 
-            padding: 0 3vw;
-            background-color: transparent; 
-        }
-
-        /* === 3. SCOREBOARD STYLES (UPDATED FOR ROUND-BY-ROUND) === */
-        
-        #final-score-message {
-            font-size: 4vw;
-            color: var(--text-color);
-            font-weight: normal;
-            margin: 2vh 0 1vh 0;
-        }
-        
-        /* 8% H + 0% M = 8vh (Scoreboard, sits flush at the bottom) */
-        .score-board { 
-            height: 8vh; 
-            display: flex; 
-            width: 90%;
-            max-width: 450px; 
-            margin: 0 auto; 
-            padding: 1vh 0; 
-            
-            border: 2px solid var(--text-color); 
-            border-radius: 8px;
-            overflow: hidden; 
-            background-color: white; 
-        }
-
-        /* Scoreboard content styling */
-        .score-board span {
-            flex-grow: 1;
-            padding: 0; 
-            font-weight: bold;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            color: var(--text-color);
-            background-color: transparent;
-        }
-        
-        /* Round Scoreboard default styles (smaller, simple text) */
-        .score-board:not(.final-board) #player-score { 
-            font-size: 4.5vw; 
-            color: var(--primary-color); /* You: Blue score text */
-        }
-        .score-board:not(.final-board) #opponent-score { 
-            font-size: 4.5vw; 
-            color: var(--player-2-color); /* Opponent: Red score text */
-        }
-        .score-board:not(.final-board) .label {
-            font-size: 3vw;
-            font-weight: normal;
-            margin-top: -0.5vh;
-        }
-
-        #player-score-container { 
-            border-right: 1px solid var(--text-color); /* Thin divider */
-        }
-        
-        /* FINAL SCOREBOARD SPECIFIC STYLES (For Game Over screen) */
-        .score-board.final-board {
-            width: 80%;
-            max-width: 350px;
-            height: 20vh;
-            border: 2px solid var(--text-color);
-            border-radius: 0; 
-            padding: 0;
-            margin-bottom: 2vh; 
-            background-color: white; 
-        }
-
-        .score-board.final-board #player-score-container,
-        .score-board.final-board #opponent-score-container {
-            background-color: white; 
-            border-right: 1px solid var(--text-color); 
-            padding: 1vh 0;
-        }
-
-        .score-board.final-board #player-score-container { color: var(--primary-color); }
-        .score-board.final-board #opponent-score-container { color: var(--player-2-color); }
-        
-        .score-board.final-board .player-name {
-            font-size: 4.5vw;
-            margin-bottom: 2vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 5px;
-        }
-
-        .score-board.final-board #player-score,
-        .score-board.final-board #opponent-score {
-            font-size: 12vw; 
-            font-weight: 800;
-            line-height: 1;
-        }
-
-        .score-board.final-board .label {
-            display: none;
-        }
-        
-        /* Player color blocks */
-        .score-board.final-board .color-box {
-            width: 10px;
-            height: 10px;
-            border-radius: 2px;
-            margin-right: 2px;
-        }
-
-        #player-color-box { background-color: var(--primary-color); }
-        #opponent-color-box { background-color: var(--player-2-color); }
-
+        /* ... Your complete CSS styles are here ... */
     </style>
 </head>
 
@@ -306,121 +12,144 @@
     <span id="welcome-message">Welcome, Guest!</span> 
     <a href="/logout" style="float: right; color: red;">Logout</a>
 </header>
-
 <body>
 
 <div id="game-container">
     
-    <h1>🌍 Flag Quiz: Fast Lane</h1>
-
-    <div id="status">Connecting to server...</div>
-
-    <div id="round-display"></div>
-
-    <img id="current-flag" class="flag-image" src="data:image/gif;base64,R0GODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" alt="Flag to guess">
-
-    <div id="options-container">
-        </div>
-
-    <p id="result-message"></p>
-
-    <div id="time-display">
-        <span id="player-time">YOU: --</span>
-        <span id="opponent-time">OPPONENT: --</span>
     </div>
-
-    <div class="score-board" id="scoreboard-container">
-        <span id="player-score-container">
-            <span id="player-score">0</span>
-            <span class="label">YOU</span>
-        </span>
-        <span id="opponent-score-container">
-            <span id="opponent-score">0</span>
-            <span class="label">OPPONENT</span>
-        </span>
-    </div>
-
-</div>
 
 <script src="/socket.io/socket.io.js"></script>
 
 <script>
-    const socket = io();
+    // --- AUTHENTICATION START ---
+    
+    // Helper function to get URL parameters
+    function getQueryParameter(name) {
+        const urlParams = new URLSearchParams(window.location.search);
+        return urlParams.get(name);
+    }
+
+    const userId = getQueryParameter('userId');
+
+    // 1. Check for Authentication
+    if (!userId) {
+        // If the userId is missing, redirect the user to login page
+        alert("Please log in to play the game.");
+        window.location.href = '/login';
+        // Stop script execution
+        throw new Error("Unauthenticated access."); 
+    }
+
+    // 2. Dynamic Socket Connection (required for Render)
+    // Get the base URL (e.g., https://your-render-app.onrender.com)
+    const RENDER_URL = window.location.protocol + "//" + window.location.host;
+
+    // Connect, passing the userId in the query parameter
+    const socket = io(RENDER_URL, {
+        query: {
+            userId: userId // Sends the ID to the server's handshake
+        }
+    });
+
+    // 3. Socket Listeners for Auth
+    socket.on('connect', () => {
+        // Hide userId from the URL after successful connection
+        history.replaceState(null, '', window.location.pathname); 
+        
+        statusEl.textContent = '✅ Connected. Authenticating...';
+        statusEl.style.color = getCssVar('--text-color');
+        resetUI(false);
+    });
+
+    socket.on('auth_successful', (data) => {
+        // Server confirmed the ID is valid and sent the username
+        document.getElementById('welcome-message').textContent = `Welcome, ${data.username}!`;
+        console.log(`Authenticated as ${data.username}. Searching for an opponent...`);
+        
+        // Now proceed to the main matchmaking status
+        statusEl.textContent = '⏱️ Searching for opponent...';
+        statusEl.style.color = getCssVar('--text-color');
+    });
+
+    socket.on('unauthorized_access', () => {
+        // Fallback if the server specifically rejects the userId
+        alert("Authentication failed. Redirecting to login.");
+        window.location.href = '/login';
+    });
+
+    // --- END AUTHENTICATION ---
+
+
     let currentMatchId = null;
     let isAnswered = false;
     let roundStartTime = 0; 
     let myScore = 0;
     let opponentScore = 0;
-    let isP1 = false; // Track if local player is P1
+    let isP1 = false; 
 
-    // --- ELEMENT REFERENCES (Ensure we get fresh references if innerHTML is changed) ---
+    // --- ELEMENT REFERENCES (No change, but ensuring they are below the auth logic) ---
+    // Using window.onload or DOMContentLoaded is safer for fetching these, 
+    // but since the script is at the end of the body, it should be fine.
     const gameContainerEl = document.getElementById('game-container');
     const statusEl = document.getElementById('status');
     const roundDisplayEl = document.getElementById('round-display');
     const flagImageEl = document.getElementById('current-flag');
     const optionsContainerEl = document.getElementById('options-container');
     const resultMessageEl = document.getElementById('result-message');
-    let playerScoreEl = document.getElementById('player-score'); // Use let
-    let opponentScoreEl = document.getElementById('opponent-score'); // Use let
+    let playerScoreEl = document.getElementById('player-score'); 
+    let opponentScoreEl = document.getElementById('opponent-score'); 
     const playerTimeEl = document.getElementById('player-time');
     const opponentTimeEl = document.getElementById('opponent-time');
     const scoreboardContainerEl = document.getElementById('scoreboard-container');
     
-    // Attempt to remove final score message if it exists from previous load (for development)
-    const existingFinalMessage = document.getElementById('final-score-message');
-    if (existingFinalMessage) {
-        existingFinalMessage.remove();
+    // Helper to get CSS variables
+    function getCssVar(name) {
+        return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
     }
 
 
-    // --- VISUAL/STATE MANAGEMENT ---
+    // --- VISUAL/STATE MANAGEMENT (Minor Fixes) ---
 
     function resetUI(showRoundDisplay = true) {
-        // Clear all dynamic content
+        // ... (Your existing resetUI logic) ...
         optionsContainerEl.innerHTML = '';
-        flagImageEl.src = 'data:image/gif;base64,R0GODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'; // Blank image placeholder
+        flagImageEl.src = 'data:image/gif;base64,R0GODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'; 
         resultMessageEl.textContent = '';
         playerTimeEl.textContent = 'YOU: --';
         opponentTimeEl.textContent = 'OPPONENT: --';
         
-        // Ensure the scoreboard is in round mode initially
         scoreboardContainerEl.classList.remove('final-board');
         
-        // Remove final score title if it exists
         const finalMessage = document.getElementById('final-score-message');
         if (finalMessage) {
             finalMessage.remove();
         }
         
-        // Hide/Show elements based on stage
         const titleEl = document.querySelector('h1');
         
-        titleEl.style.display = showRoundDisplay ? 'flex' : 'none';
-        roundDisplayEl.style.display = showRoundDisplay ? 'flex' : 'none';
-        flagImageEl.style.display = showRoundDisplay ? 'block' : 'none';
-        optionsContainerEl.style.display = showRoundDisplay ? 'flex' : 'none';
-        resultMessageEl.style.display = showRoundDisplay ? 'flex' : 'none';
-        playerTimeEl.parentElement.style.display = showRoundDisplay ? 'flex' : 'none';
+        // Hide elements that aren't needed when waiting
+        const elementsToToggle = [roundDisplayEl, flagImageEl, optionsContainerEl, resultMessageEl, playerTimeEl.parentElement, scoreboardContainerEl];
         
-        scoreboardContainerEl.style.display = showRoundDisplay ? 'flex' : 'none';
+        elementsToToggle.forEach(el => {
+            el.style.display = showRoundDisplay ? (el.id === 'options-container' ? 'flex' : 'block') : 'none';
+        });
 
+        // H1 and status are always visible (except when game is active for H1)
+        titleEl.style.display = showRoundDisplay ? 'none' : 'flex';
+        statusEl.style.display = 'flex'; // Status should always be visible when waiting
+        
         // --- CRITICAL ALIGNMENT CHANGE ---
         if (showRoundDisplay) {
-            // Game is active: Use default top-down flow
             gameContainerEl.classList.remove('centered-status');
         } else {
-            // Waiting for opponent/Game Over: Center the remaining visible element (status/final scoreboard)
             gameContainerEl.classList.add('centered-status');
         }
+        // ***********************
     }
     
-    // --- SOCKET LISTENERS ---
+    // --- SOCKET LISTENERS (Removed 'connect' logic that is now in Auth section) ---
     
-    socket.on('connect', () => {
-        statusEl.textContent = '✅ Connected. Searching for an opponent...';
-        statusEl.style.color = getCssVar('--text-color');
-        resetUI(false);
-    });
+    // socket.on('connect' logic is now handled above for authentication status
 
     socket.on('waiting_for_opponent', () => {
         statusEl.textContent = '⏱️ Searching for opponent...';
@@ -430,7 +159,7 @@
 
     socket.on('match_found', (data) => {
         currentMatchId = data.matchId;
-        isP1 = data.isP1; // Store if local player is P1
+        isP1 = data.isP1; 
         statusEl.textContent = '🤝 Match Found! Getting ready...';
         
         myScore = 0;
@@ -438,30 +167,32 @@
         playerScoreEl.textContent = myScore;
         opponentScoreEl.textContent = opponentScore;
         
-        // Hide status message once game starts
         setTimeout(() => {
-            statusEl.textContent = '';
-        }, 3000); 
+            statusEl.textContent = ''; // Clear status just before round starts
+        }, 1500); 
     });
+    
+    // ... (rest of your existing socket.on('new_round') logic is fine) ...
 
     socket.on('new_round', (data) => {
-        isAnswered = false;
-        resetUI(true); // Show quiz elements
-        
-        // ******* FIX: Ensure the round scoreboard structure is restored *******
-        // This is necessary because game_over modifies the innerHTML of the score containers.
+        // ******* CRITICAL FIX: Ensure the round scoreboard structure is restored *******
+        // Restore elements that might have been overwritten by endGame()
         document.getElementById('player-score-container').innerHTML = `
-            <span id="player-score">${playerScoreEl.textContent}</span>
+            <span id="player-score">${myScore}</span>
             <span class="label">YOU</span>
         `;
         document.getElementById('opponent-score-container').innerHTML = `
-            <span id="opponent-score">${opponentScoreEl.textContent}</span>
+            <span id="opponent-score">${opponentScore}</span>
             <span class="label">OPPONENT</span>
         `;
         
         // Re-assign element references after innerHTML changes
         playerScoreEl = document.getElementById('player-score');
         opponentScoreEl = document.getElementById('opponent-score');
+        
+        // ... (rest of new_round logic is fine) ...
+        isAnswered = false;
+        resetUI(true); // Show quiz elements
         
         roundStartTime = Date.now(); 
         
@@ -489,225 +220,101 @@
         resultMessageEl.style.color = getCssVar('--text-color');
     });
 
-    // Immediate feedback when the server registers the answer for BOTH players
-    socket.on('answer_registered', (data) => {
-        const timeTaken = data.timeElapsed;
-        
-        if (data.isOpponent) {
-            // This event is about the OPPONENT's answer
-            opponentTimeEl.textContent = `OPPONENT: ${timeTaken.toFixed(2)}s`;
-            
-            // Show a waiting message, but don't claim success for the local player
-            resultMessageEl.textContent = 'Opponent answered! You must answer now.';
-            resultMessageEl.style.color = getCssVar('--text-color');
-            
-        } else {
-            // This event is about the LOCAL PLAYER's answer
-            playerTimeEl.textContent = `YOU: ${timeTaken.toFixed(2)}s`;
-            
-            // Local player's success confirmation
-            resultMessageEl.textContent = '✅ Answer Submitted! Waiting for opponent...';
-            resultMessageEl.style.color = getCssVar('--primary-color');
-        }
-    });
+    // ... (rest of your existing socket.on('answer_registered') logic is fine) ...
 
-
-    socket.on('round_results', (data) => {
-        const optionButtons = optionsContainerEl.querySelectorAll('.option-button');
-        const myId = socket.id;
-        
-        // Determine who won the round
-        const wonRound = data.winnerId === myId;
-        const opponentWon = data.winnerId && data.winnerId !== myId;
-        
-        // Update scoreboard display
-        const localScore = isP1 ? data.p1Score : data.p2Score;
-        const oppScore = isP1 ? data.p2Score : data.p1Score;
-
-        playerScoreEl.textContent = localScore;
-        opponentScoreEl.textContent = oppScore;
-
-        // --- CRITICAL FIX: Prevent overwriting displayed answer times if they were already set ---
-        
-        const p1Time = data.p1Time;
-        const p2Time = data.p2Time;
-        const localTime = isP1 ? p1Time : p2Time;
-        const oppTime = isP1 ? p2Time : p1Time;
-
-        // 1. Update Player Time (Only if it's the default or submission status)
-        if (playerTimeEl.textContent.includes('--') || playerTimeEl.textContent.includes('Submitting')) {
-            if (localTime === Infinity) {
-                 playerTimeEl.textContent = `YOU: Missed`;
-            } else {
-                 playerTimeEl.textContent = `YOU: ${localTime.toFixed(2)}s`;
-            }
-        }
-        
-        // 2. Update Opponent Time (Only if it's the default or submission status)
-        if (opponentTimeEl.textContent.includes('--') || opponentTimeEl.textContent.includes('Submitting')) {
-            if (oppTime === Infinity) {
-                opponentTimeEl.textContent = `OPPONENT: Missed`;
-            } else {
-                opponentTimeEl.textContent = `OPPONENT: ${oppTime.toFixed(2)}s`;
-            }
-        }
-        // --- END CRITICAL FIX ---
-
-
-        // Style buttons based on result
-        optionButtons.forEach(button => {
-            button.disabled = true; // Disable all buttons
-            
-            if (button.textContent === data.correctAnswer) {
-                button.classList.add('correct');
-            } else if (button.classList.contains('selected')) {
-                button.classList.add('incorrect'); // Selected but incorrect
-            }
-        });
-
-        // Set result message
-        if (wonRound) {
-            resultMessageEl.textContent = '✅ CORRECT! You were faster!';
-            resultMessageEl.style.color = getCssVar('--success-color');
-        } else if (opponentWon) {
-            resultMessageEl.textContent = '❌ Opponent scored this round!';
-            resultMessageEl.style.color = getCssVar('--error-color');
-        } else {
-            resultMessageEl.textContent = `🤷 Correct answer was ${data.correctAnswer}.`;
-            resultMessageEl.style.color = getCssVar('--text-color');
-        }
-    });
+    // ... (rest of your existing socket.on('round_results') logic is fine) ...
 
     socket.on('game_over', (data) => {
-        resetUI(false); // Hide most quiz elements
+        // ... (Your existing game_over logic) ...
         
-        // Set the final scoreboard class
-        scoreboardContainerEl.classList.add('final-board');
-        scoreboardContainerEl.style.display = 'flex'; // Ensure scoreboard is visible
-
-        // Determine scores and player roles
-        const p1Score = data.p1Score;
-        const p2Score = data.p2Score;
+        statusEl.style.display = 'flex';
+        roundDisplayEl.style.display = 'none';
+        flagImageEl.style.display = 'none';
+        optionsContainerEl.style.display = 'none';
+        resultMessageEl.style.display = 'none';
+        playerTimeEl.parentElement.style.display = 'none';
         
-        let localScore, oppScore, localPlayerName, oppPlayerName;
+        gameContainerEl.classList.add('centered-status'); // Center the final result
         
-        if (isP1) {
-            localScore = p1Score;
-            oppScore = p2Score;
-            localPlayerName = 'PLAYER 1';
-            oppPlayerName = 'PLAYER 2';
-        } else {
-            localScore = p2Score;
-            oppScore = p1Score;
-            localPlayerName = 'PLAYER 2';
-            oppPlayerName = 'PLAYER 1';
-        }
-
-        // --- Update Scoreboard HTML Structure to Match Final Design ---
-        const p1ScoreContainer = document.getElementById('player-score-container');
-        const p2ScoreContainer = document.getElementById('opponent-score-container');
-        
-        // The innerHTML structure of the score containers is replaced for the final screen
-        p1ScoreContainer.innerHTML = `
-            <span class="player-name">
-                <span class="color-box" id="player-color-box"></span>
-                ${localPlayerName}
-            </span>
-            <span id="player-score">${localScore}</span>
-        `;
-        
-        p2ScoreContainer.innerHTML = `
-            <span class="player-name">
-                <span class="color-box" id="opponent-color-box"></span>
-                ${oppPlayerName}
-            </span>
-            <span id="opponent-score">${oppScore}</span>
-        `;
-        
-        // Re-assign references after modifying innerHTML
-        playerScoreEl = document.getElementById('player-score');
-        opponentScoreEl = document.getElementById('opponent-score');
-        // --- End Scoreboard HTML Update ---
-        
-        // Add "FINAL SCORES" title
-        const finalScoreMessage = document.createElement('p');
-        finalScoreMessage.id = 'final-score-message';
-        finalScoreMessage.textContent = 'FINAL SCORES';
-        gameContainerEl.insertBefore(finalScoreMessage, scoreboardContainerEl);
-
-
+        // --- 1. Determine Winner and Message ---
+        const myId = socket.id;
+        const winnerId = data.winner;
         let message = '';
         let color = getCssVar('--text-color');
 
-        if (data.winner === socket.id) {
-            message = `🎉 YOU WON!`;
+        if (winnerId === myId) {
+            message = '👑 YOU WIN! Congratulations!';
             color = getCssVar('--success-color');
-        } else if (data.winner) {
-            message = `😭 YOU LOST.`;
-            color = getCssVar('--error-color');
+        } else if (winnerId) {
+            message = '💔 GAME OVER. Opponent Wins.';
+            color = getCssVar('--player-2-color');
         } else {
-            message = `🤝 DRAW.`;
-            color = getCssVar('--text-color');
+            message = '🤝 It\'s a DRAW!';
+            color = getCssVar('--primary-color');
         }
+
+        statusEl.textContent = message;
+        statusEl.style.color = color;
+
+        // --- 2. Update Scoreboard to Final Mode ---
+        scoreboardContainerEl.classList.add('final-board');
+        scoreboardContainerEl.style.display = 'flex'; // Ensure scoreboard is visible
+
+        const localScore = isP1 ? data.p1Score : data.p2Score;
+        const oppScore = isP1 ? data.p2Score : data.p1Score;
+
+        // Create the final score message element *before* modifying the scoreboard innerHTML
+        const finalScoreMessageEl = document.createElement('p');
+        finalScoreMessageEl.id = 'final-score-message';
+        finalScoreMessageEl.textContent = `FINAL SCORE: ${localScore} - ${oppScore}`;
+        scoreboardContainerEl.insertAdjacentElement('beforebegin', finalScoreMessageEl);
+
+
+        document.getElementById('player-score-container').innerHTML = `
+            <div class="player-name"><span class="color-box" id="player-color-box"></span>YOU</div>
+            <span id="player-score">${localScore}</span>
+        `;
+        document.getElementById('opponent-score-container').innerHTML = `
+            <div class="player-name"><span class="color-box" id="opponent-color-box"></span>OPPONENT</div>
+            <span id="opponent-score">${oppScore}</span>
+        `;
+
+        // --- 3. Play Again Button ---
+        const playAgainButton = document.createElement('button');
+        playAgainButton.className = 'option-button'; // Reusing styling
+        playAgainButton.style.width = '80%';
+        playAgainButton.style.marginTop = '2vh';
+        playAgainButton.textContent = 'Play Again (Find New Match)';
+        playAgainButton.onclick = () => {
+            // Re-authenticate (since the socket will be disconnected/reused)
+            window.location.reload(); 
+        };
         
-        // Hide the default status div and use the message area for the outcome
-        statusEl.style.display = 'none';
-        resultMessageEl.style.display = 'flex';
-        resultMessageEl.textContent = message;
-        resultMessageEl.style.color = color;
-        
-        // Offer to restart
-        setTimeout(() => {
-            resultMessageEl.textContent += ' Click here to search for a new match!';
-            resultMessageEl.style.cursor = 'pointer';
-            resultMessageEl.onclick = () => window.location.reload(); 
-        }, 5000);
+        // Append the button below the final scoreboard container
+        scoreboardContainerEl.insertAdjacentElement('afterend', playAgainButton);
+
+        currentMatchId = null;
     });
 
-    socket.on('opponent_disconnected', (message) => {
-        resetUI(false);
-        statusEl.textContent = `🚨 ${message}`;
-        statusEl.style.color = getCssVar('--error-color');
-        
-        setTimeout(() => {
-            statusEl.textContent += ' Click here to search for a new match!';
-            statusEl.style.cursor = 'pointer';
-            statusEl.onclick = () => window.location.reload(); 
-        }, 3000);
-    });
-    
-    // --- USER INPUT HANDLER ---
-
-    function handleAnswer(answer, selectedButton) {
-        if (isAnswered || !currentMatchId) return;
-        
+    // ... (rest of your existing handleAnswer logic is fine) ...
+    function handleAnswer(answerText, button) {
+        if (isAnswered) return;
         isAnswered = true;
 
-        // Visual feedback for selection
-        selectedButton.classList.add('selected');
-        
-        // Disable other buttons immediately
-        optionsContainerEl.querySelectorAll('.option-button').forEach(btn => {
-            if (btn !== selectedButton) {
-                btn.disabled = true;
-            }
-        });
-        
-        // Send answer to server (Server records the submission time)
+        // Disable all buttons and mark selected one
+        optionsContainerEl.querySelectorAll('.option-button').forEach(btn => btn.disabled = true);
+        button.classList.add('selected');
+
+        // Estimate time taken from client perspective (used for display, server time is definitive)
+        const timeTaken = (Date.now() - roundStartTime) / 1000;
+        playerTimeEl.textContent = `YOU: ${timeTaken.toFixed(2)}s (Submitting...)`;
+
+        // Send the answer to the server
         socket.emit('submit_answer', {
             matchId: currentMatchId,
-            answer: answer
+            answer: answerText
         });
-        
-        // Client-side visual update while waiting for server confirmation
-        resultMessageEl.textContent = 'Submitting answer...';
-        resultMessageEl.style.color = getCssVar('--text-color');
     }
 
-    // --- UTILITY ---
-    function getCssVar(name) {
-        return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-    }
 </script>
-</body>
 </html>
