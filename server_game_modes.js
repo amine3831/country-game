@@ -1,152 +1,55 @@
-// server_game_modes.js (UPDATE EXISTING FILE)
-const path = require('path');
+// server_game_modes.js (FINAL UNIFIED VERSION)
 
-// ... (Existing imports and setup) ...
+// --- 1. CORE IMPORTS & SERVER SETUP ---
+const path = require('path');
+const express = require('express');
+const http = require('http');
+const socketio = require('socket.io');
+
+const app = express();
+const server = http.createServer(app);
+const io = socketio(server);
+
+// ... (Your existing database/user list/flagData imports should go here) ...
+// Example: const flagData = require('./flag_data.json'); 
+// Example: const users = require('./db/users.json');
+
+// ... (Your Existing Express Middleware, e.g., for JSON parsing or public folders) ...
 
 // Game state variables
 let waitingPlayer = null; 
 const activeMatches = {};  
-const simpleGames = {}; // 💡 NEW: Track active simple games { socketId: { matchId, currentStreak, highScore, matchQuestions, ... } }
+const simpleGames = {}; 
 
-// ... (Existing Express Middleware) ...
+// --- 2. EXPRESS ROUTES (Authentication & Serving HTML) ---
 
-// --- EXPRESS ROUTES (Authentication & Serving HTML) ---
-
-// 1. Route for the main game page
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// 💡 NEW ROUTE: Route for the Simple Game page
+// 💡 FIX FOR Cannot GET /simple_game
 app.get('/simple_game', (req, res) => {
     res.sendFile(path.join(__dirname, 'simple_game.html'));
 });
 
 // ... (Existing routes: /signup, /login, /logout) ...
 
-// --- UTILITY FUNCTIONS (Assume your existing implementation is here) ---
+// --- 3. UTILITY FUNCTIONS (Your functions go here) ---
 function shuffleArray(array) { /* ... */ return array; }
 function generateMatchId() { /* ... */ return Math.random().toString(36).substring(2, 8); }
-function selectUniqueRandom(sourceArr, count, excludeArr = []) { /* ... */ return []; }
 function generateQuizOptions(correctCountry) { /* ... */ return []; } 
-
-// --- NEW FUNCTION: Simple Game Round Starter ---
-/** Starts the next round for a single-player simple game. */
-function startSimpleGameRound(playerId) {
-    const game = simpleGames[playerId];
-    if (!game) return;
-
-    // Move to the next question
-    game.currentQuestionIndex++;
-    
-    // Loop questions if we run out (for simplicity)
-    const questionIndex = game.currentQuestionIndex % game.matchQuestions.length; 
-    const currentQuestion = game.matchQuestions[questionIndex];
-    
-    const options = generateQuizOptions(currentQuestion.country);
-
-    // Send the new round data back to the player
-    io.to(playerId).emit('simple_new_round', {
-        streak: game.currentStreak,
-        highScore: game.highScore, // Include high score for display
-        image: currentQuestion.image,
-        options: options
-    });
-}
-// ---------------------------------------------
+// ... (Your startSimpleGameRound function goes here) ...
 
 
-// --- 4. SOCKET.IO EVENT HANDLERS (UPDATED LOGIC) ---
+// --- 4. SOCKET.IO EVENT HANDLERS (The code you provided goes here) ---
 
 io.on('connection', (socket) => {
-    const userId = socket.handshake.query.userId;
-    
-    // ... (Existing Auth and connection success logic) ...
-    if (!userId) { /* ... */ }
-    // ... (rest of auth) ...
-    
-    console.log(`Authenticated user connected: ${username} (ID: ${userId})`);
-    socket.emit('auth_successful', { username: username });
-    
-    // --- NEW: Simple Game Request Handlers ---
+    // ... (All your authentication, simple game, and multiplayer logic) ...
+});
 
-    // A. Start Simple Game Session (triggered when user lands on simple_game.html)
-    socket.on('start_simple_session', () => {
-        // 1. Check if a session already exists (to prevent resetting game on page refresh)
-        if (simpleGames[socket.id]) {
-            // Restart game for clean state if refreshing
-            delete simpleGames[socket.id]; 
-        }
+// --- 5. SERVER STARTUP ---
 
-        // 2. Prepare the questions
-        const shuffledQuestions = shuffleArray([...flagData]); 
-        
-        // 3. Create the game object
-        simpleGames[socket.id] = {
-            id: generateMatchId(), 
-            playerId: socket.id, 
-            currentStreak: 0,
-            highScore: 0, // In a real app, this would be loaded from a database
-            matchQuestions: shuffledQuestions, 
-            currentQuestionIndex: -1,
-        };
-        
-        console.log(`Simple Game session started for user ${socket.id}.`);
-        
-        // 4. Start the first round
-        startSimpleGameRound(socket.id); 
-    });
-
-
-    // B. Simple Game Answer Submission Handler
-    socket.on('submit_simple_answer', (data) => {
-        const game = simpleGames[socket.id];
-        if (!game || game.currentQuestionIndex === -1) return; // Game not initialized
-
-        const questionIndex = game.currentQuestionIndex % game.matchQuestions.length;
-        const question = game.matchQuestions[questionIndex];
-        const isCorrect = data.answer === question.country;
-        
-        // 1. Send feedback immediately
-        socket.emit('simple_game_feedback', {
-            isCorrect: isCorrect,
-            correctAnswer: question.country
-        });
-
-        if (isCorrect) {
-            // Increase streak and proceed
-            game.currentStreak++;
-            startSimpleGameRound(socket.id);
-            
-        } else {
-            // Game Over
-            const finalStreak = game.currentStreak;
-            
-            // Update high score
-            if (finalStreak > game.highScore) {
-                game.highScore = finalStreak;
-            }
-            
-            // Notify client of game over
-            socket.emit('simple_game_over', {
-                finalStreak: finalStreak,
-                highScore: game.highScore
-            });
-            
-            // Clean up the game (optional, keeping it allows tracking high score for session)
-            // delete simpleGames[socket.id]; 
-        }
-    });
-    // -------------------------------------------------------------
-
-
-    // ... (Existing multiplayer match logic remains below) ...
-    socket.on('request_multiplayer_match', () => { /* ... */ });
-    socket.on('submit_answer', (data) => { /* ... */ });
-    socket.on('disconnect', () => { 
-        // 💡 Cleanup simple games on disconnect
-        delete simpleGames[socket.id];
-        // ... (rest of disconnect logic) ...
-    });
-    // ... (rest of the file: endGame, flagData, etc.) ...
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
 });
