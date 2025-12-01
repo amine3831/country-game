@@ -1,63 +1,44 @@
-// server.js (FINAL ROBUST CODE)
+// server.js (FINAL UNIFIED CODE - Incorporating Proven Group Lookup)
 
 // --- 1. CORE IMPORTS & SERVER SETUP ---
 const path = require('path');
 const express = require('express');
 const http = require('http');
-const socketio = require('socket.io');
+const socketio = require('socket.io'); // Using the older socketio package structure
 const fs = require('fs');
 
 const app = express();
 const server = http.createServer(app);
 const io = socketio(server);
 
-// --- 2. DATA LOADING (CRITICAL FIX: Robust Groups Import and Reverse Map) ---
+// --- 2. DATA LOADING (Uses require() for flag_data.json and groups.js) ---
 let flagData = []; 
 let CONFUSION_GROUPS_MAP = {}; 
-let CONFUSION_GROUP_REVERSE_MAP = {}; 
+// Note: We remove the CONFUSION_GROUP_REVERSE_MAP and CONFUSION_GROUP_REVERSE_MAP here!
 
 try {
+    // Attempt to load flag_data.json
     const rawFlagData = require('./flag_data.json'); 
     
-    // Key mapping: Map 'correctAnswer' to 'country'
+    // FIX: Map 'correctAnswer' key to 'country' key for consistency
     flagData = rawFlagData.map(item => ({
         ...item,
         country: item.correctAnswer, 
         image: item.image, 
     }));
     
-    // Correct import of the groups map
-    let importedGroups = require('./groups');
+    // Load the groups map directly
+    CONFUSION_GROUPS_MAP = require('./groups');
+    
+    // Check for nested map structure for robustness
+    if (typeof CONFUSION_GROUPS_MAP === 'object' && CONFUSION_GROUPS_MAP !== null && !Array.isArray(CONFUSION_GROUPS_MAP)) {
+        CONFUSION_GROUPS_MAP = CONFUSION_GROUPS_MAP.CONFUSION_GROUPS_MAP || CONFUSION_GROUPS_MAP.groups || CONFUSION_GROUPS_MAP;
+    }
 
-    // --- NEW ROBUSTNESS CHECK ---
-    // Handle cases where 'groups.js' might export an object wrapping the actual map.
-    if (typeof importedGroups === 'object' && importedGroups !== null && !Array.isArray(importedGroups)) {
-        // Find the deepest object that looks like the groups map
-        CONFUSION_GROUPS_MAP = importedGroups.CONFUSION_GROUPS_MAP || importedGroups.groups || importedGroups;
-    }
-    // ----------------------------
-    
-    if (Object.keys(CONFUSION_GROUPS_MAP).length === 0) {
-         console.error("⚠️ WARNING: CONFUSION_GROUPS_MAP is empty after import. Check groups.js export format.");
-    }
-    
-    // --- BUILD REVERSE MAP ---
-    for (const groupName in CONFUSION_GROUPS_MAP) {
-        if (CONFUSION_GROUPS_MAP.hasOwnProperty(groupName)) {
-            const countriesInGroup = CONFUSION_GROUPS_MAP[groupName];
-            if (Array.isArray(countriesInGroup)) { // Safety check
-                countriesInGroup.forEach(country => {
-                    CONFUSION_GROUP_REVERSE_MAP[country] = groupName;
-                });
-            }
-        }
-    }
-    // -------------------------
-    
-    console.log(`✅ Data loaded: ${flagData.length} flags. Groups loaded: ${Object.keys(CONFUSION_GROUPS_MAP).length} groups.`);
-
+    console.log(`✅ Data loaded: ${flagData.length} flags.`);
 } catch (error) {
     console.error("❌ CRITICAL ERROR: Failed to load game data or groups map. Game will not function:", error.message);
+    // You must ensure flag_data.json and groups.js are in the same directory.
 }
 
 
@@ -75,7 +56,7 @@ app.use(express.static(path.join(__dirname)));
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
-// --- 4. UTILITY FUNCTIONS ---
+// --- 4. UTILITY FUNCTIONS (UPDATED generateQuizOptions with PROVEN LOGIC) ---
 
 function shuffleArray(array) {
     for (let i = array.length - 1; i > 0; i--) {
@@ -91,47 +72,70 @@ function generateMatchId() {
 
 function selectUniqueRandom(sourceArr, count, excludeArr = []) {
     if (!sourceArr || sourceArr.length === 0) return []; 
-    const pool = sourceArr.filter(item => !excludeArr.includes(item));
-    return shuffleArray(pool).slice(0, count);
+    // Filter the source array to remove excluded items
+    const selectionPool = sourceArr.filter(item => !excludeArr.includes(item));
+    return shuffleArray(selectionPool).slice(0, count);
 }
 
+/**
+ * Generates quiz options (4 total) based on the custom Confusion Groups Map.
+ * This uses the robust, working lookup logic from the previous server.js version.
+ * @param {string} correctCountry - The name of the flag currently being displayed.
+ * @returns {Array<string>} An array of four shuffled country names (options).
+ */
 function generateQuizOptions(correctCountry) {
-    const options = [correctCountry];
-    
-    // Defensive check
-    if (Object.keys(CONFUSION_GROUPS_MAP).length === 0) {
-         console.error("CRITICAL DATA ERROR: CONFUSION_GROUPS_MAP is empty. Using random fallback.");
-         const allCountries = flagData.map(f => f.country);
-         return selectUniqueRandom(allCountries, 4);
-    }
-    
-    // Use the reverse map to find the correct group
-    const groupName = CONFUSION_GROUP_REVERSE_MAP[correctCountry];
-    
-    let confusionGroupCountries = null;
-    if (groupName) {
-        // Retrieve the array of countries using the group name
-        confusionGroupCountries = CONFUSION_GROUPS_MAP[groupName];
-    }
-    
-    if (confusionGroupCountries && Array.isArray(confusionGroupCountries)) {
-        // Attempt to pull 3 options from the confusion group
-        const groupOptions = selectUniqueRandom(confusionGroupCountries, 3, options);
-        options.push(...groupOptions);
-    }
+    const ALL_COUNTRIES_NAMES = flagData.map(flag => flag.country);
+    let distractors = [];
+    let groupCountries = null;
+    const requiredDistractors = 3; 
 
-
-    // Fill remaining options with random countries (Fallback/Fill)
-    const needed = 4 - options.length;
-    if (needed > 0 && flagData.length > 0) {
-        const allCountries = flagData.map(f => f.country);
-        const randomOptions = selectUniqueRandom(allCountries, needed, options);
-        options.push(...randomOptions);
+    // --- PROVEN LOGIC: Find the Group for the correct country by looping through all groups ---
+    for (const key in CONFUSION_GROUPS_MAP) {
+        // Check if the current group array contains the correct country name
+        if (CONFUSION_GROUPS_MAP[key].includes(correctCountry)) {
+            groupCountries = CONFUSION_GROUPS_MAP[key];
+            break; // Found the group, stop searching
+        }
     }
     
-    // Return 4 unique, shuffled options
-    return shuffleArray([...new Set(options)]).slice(0, 4); 
+    // 2. Select Primary Distractors (High Difficulty)
+    if (groupCountries) {
+        // Pool of distractors from the specific group, excluding the correct country
+        const groupPool = groupCountries.filter(name => name !== correctCountry);
+
+        // Select the maximum possible number of similar flags (up to 3) from the group
+        const similarFlags = selectUniqueRandom(groupPool, requiredDistractors);
+        distractors.push(...similarFlags);
+    }
+    
+    // 3. Select Random Outliers (Fills remaining slots or handles SOLO_FALLBACK)
+    
+    // Calculate how many more options are needed to reach 3 total distractors
+    const remainingSlots = requiredDistractors - distractors.length; 
+
+    if (remainingSlots > 0) {
+        // Collect all names already chosen (distractors + correct answer)
+        const chosenNames = [correctCountry, ...distractors];
+
+        // Select the remaining needed options from the entire country list
+        const randomOutliers = selectUniqueRandom(ALL_COUNTRIES_NAMES, remainingSlots, chosenNames);
+        distractors.push(...randomOutliers);
+    }
+    
+    // 4. Assemble and Shuffle Final Options
+    const finalOptions = [correctCountry, ...distractors];
+    
+    // Safety check: ensure 4 options are generated.
+    if (finalOptions.length !== 4) {
+        // Use emergency random fallback if the length is wrong
+        console.error(`Error generating options for ${correctCountry}. Generated ${finalOptions.length} options. Using random fallback.`);
+        const backupDistractors = selectUniqueRandom(ALL_COUNTRIES_NAMES, 3, [correctCountry]);
+        return shuffleArray([correctCountry, ...backupDistractors]);
+    }
+    
+    return shuffleArray(finalOptions);
 }
+
 
 /** Starts the next round for a single-player simple game. */
 function startSimpleGameRound(playerId) {
@@ -177,7 +181,7 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// FIX FOR Cannot GET /simple_game
+// Route for simple game
 app.get('/simple_game', (req, res) => {
     res.sendFile(path.join(__dirname, 'simple_game.html'));
 });
@@ -214,7 +218,7 @@ io.on('connection', (socket) => {
     
     // --- SIMPLE GAME HANDLERS ---
 
-    // A. Start Simple Game Session (triggered when user lands on simple_game.html)
+    // A. Start Simple Game Session 
     socket.on('start_simple_session', () => {
         
         if (!flagData || flagData.length === 0) {
