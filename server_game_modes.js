@@ -1,4 +1,5 @@
 // server_game_modes.js (UPDATE EXISTING FILE)
+const path = require('path');
 
 // ... (Existing imports and setup) ...
 
