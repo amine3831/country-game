@@ -19,13 +19,15 @@ try {
     const rawFlagData = require('./flag_data.json'); 
     
     // FIX FOR BUG 1: Map 'correctAnswer' key to 'country' key
+    // This creates the 'country' property that the rest of the server code expects.
     flagData = rawFlagData.map(item => ({
         ...item,
-        country: item.correctAnswer, // Map the key
-        image: item.image, // Ensure image is present
+        country: item.correctAnswer, 
+        image: item.image, 
     }));
     
     // FIX FOR BUG 2: Correct import without destructuring
+    // Directly assigns the map object exported by groups.js.
     CONFUSION_GROUPS_MAP = require('./groups');
     
     console.log(`✅ Data loaded: ${flagData.length} flags.`);
@@ -33,6 +35,7 @@ try {
          console.error("⚠️ WARNING: flag_data.json is empty.");
     }
 } catch (error) {
+    // This error indicates the data files are missing or malformed.
     console.error("❌ CRITICAL ERROR: Failed to load game data or groups map. Game will not function:", error.message);
 }
 
@@ -66,7 +69,6 @@ function generateMatchId() {
 }
 
 function selectUniqueRandom(sourceArr, count, excludeArr = []) {
-    // Defensive check
     if (!sourceArr || sourceArr.length === 0) return []; 
     const pool = sourceArr.filter(item => !excludeArr.includes(item));
     return shuffleArray(pool).slice(0, count);
@@ -75,10 +77,8 @@ function selectUniqueRandom(sourceArr, count, excludeArr = []) {
 function generateQuizOptions(correctCountry) {
     const options = [correctCountry];
     
-    // Defensive check: Ensure CONFUSION_GROUPS_MAP is an object before accessing
     if (typeof CONFUSION_GROUPS_MAP !== 'object' || CONFUSION_GROUPS_MAP === null) {
-         console.error("CRITICAL DATA ERROR: CONFUSION_GROUPS_MAP is invalid.");
-         // Fallback: Use all countries
+         console.error("CRITICAL DATA ERROR: CONFUSION_GROUPS_MAP is invalid. Using random fallback.");
          const allCountries = flagData.map(f => f.country);
          return selectUniqueRandom(allCountries, 4);
     }
@@ -111,7 +111,6 @@ function startSimpleGameRound(playerId) {
         return;
     }
     
-    // Safety check: Avoid index issues if matchQuestions is empty
     if (game.matchQuestions.length === 0) {
          console.error("DATA ERROR: matchQuestions is empty! Cannot start round.");
          return;
@@ -123,21 +122,19 @@ function startSimpleGameRound(playerId) {
     const questionIndex = game.currentQuestionIndex % game.matchQuestions.length; 
     const currentQuestion = game.matchQuestions[questionIndex];
     
-    // --- DEBUG LOGS AND CHECKS ---
-    // Final check for a valid country name before proceeding
+    
     if (!currentQuestion || typeof currentQuestion.country !== 'string' || currentQuestion.country.length === 0) {
         console.error("DATA ERROR: Current question object is invalid or country name is missing.");
         return;
     }
     console.log(`[SIMPLE] Starting Round ${game.currentStreak + 1}. Flag: ${currentQuestion.country}`);
-    // --- END DEBUG LOGS ---
     
     const options = generateQuizOptions(currentQuestion.country);
 
     // Send the new round data back to the player
     io.to(playerId).emit('simple_new_round', {
         streak: game.currentStreak,
-        highScore: game.highScore, // Include high score for display
+        highScore: game.highScore, 
         image: currentQuestion.image,
         options: options
     });
@@ -190,14 +187,11 @@ io.on('connection', (socket) => {
     // A. Start Simple Game Session (triggered when user lands on simple_game.html)
     socket.on('start_simple_session', () => {
         
-        // --- CRITICAL CHECK ---
         if (!flagData || flagData.length === 0) {
             console.error("FATAL ERROR: flagData is empty or not loaded. Cannot start game.");
-            // Notify client to prevent indefinite stall
             socket.emit('server_error', { message: "Game data is unavailable on the server. Check server logs." });
             return; 
         }
-        // ---------------------------------
 
         if (simpleGames[socket.id]) {
             delete simpleGames[socket.id]; 
@@ -259,8 +253,7 @@ io.on('connection', (socket) => {
 });
 
 
-// --- 7. SERVER STARTUP ---
-
+// --- 7. SERVER
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
