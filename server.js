@@ -1,4 +1,4 @@
-// server.js (FINAL, UNIFIED, WORKING CODE)
+// server.js (FINAL, UNIFIED, WORKING CODE with Personalized Login)
 
 // --- 1. CORE IMPORTS & SERVER SETUP ---
 const path = require('path');
@@ -51,8 +51,8 @@ const ROUND_TIME_LIMIT_MS = 10000;
 
 // Middleware for serving static files and parsing request body
 app.use(express.static(path.join(__dirname)));
-app.use(express.urlencoded({ extended: true })); // For parsing x-www-form-urlencoded
-app.use(express.json()); // For parsing application/json
+app.use(express.urlencoded({ extended: true })); 
+app.use(express.json()); 
 
 // --- 4. UTILITY FUNCTIONS ---
 
@@ -181,7 +181,7 @@ app.get('/login', (req, res) => {
     res.sendFile(path.join(__dirname, 'login.html'));
 });
 
-// CRITICAL FIX: Route to serve the signup page
+// Route to serve the signup page
 app.get('/signup', (req, res) => {
     res.sendFile(path.join(__dirname, 'signup.html'));
 });
@@ -201,21 +201,24 @@ app.post('/signup', (req, res) => {
     }
     
     // --- AUTH/DB Placeholder ---
-    // Here, you would typically check if the user exists and store the new user.
     console.log(`User registration attempt successful for: ${username}. Redirecting to login.`);
     // ---------------------------
     
-    // CRITICAL: Always send a response/redirect
     res.redirect('/login'); 
 });
 
 
+// CRITICAL CHANGE: POST route to handle user login and pass username in redirect
 app.post('/login', (req, res) => {
-    // Basic placeholder login logic
+    // Capture the username submitted in the form
     const username = req.body.username || 'Guest';
-    // In a real app, you'd check credentials and assign a persistent session ID
+    
+    // Basic placeholder login logic
+    // Assign a temporary userId.
     const userId = 'user_' + Math.random().toString(36).substring(2, 8);
-    res.redirect(`/?userId=${userId}`); 
+    
+    // Pass BOTH userId and username in the query string for personalization
+    res.redirect(`/?userId=${userId}&username=${username}`); 
 });
 
 app.get('/logout', (req, res) => {
@@ -226,9 +229,9 @@ app.get('/logout', (req, res) => {
 // --- 6. SOCKET.IO EVENT HANDLERS ---
 
 io.on('connection', (socket) => {
-    // Note: Authentication relies on query parameter which is weak security
     const userId = socket.handshake.query.userId;
-    let username = 'Guest'; 
+    // CRITICAL CHANGE: Retrieve username from query, defaulting to 'Guest' if missing.
+    let username = socket.handshake.query.username || 'Guest'; 
     
     // Auth Check
     if (!userId) {
@@ -236,7 +239,10 @@ io.on('connection', (socket) => {
         socket.emit('unauthorized_access');
         return socket.disconnect(true);
     }
+    
     console.log(`[SOCKET] User connected: ${username} (ID: ${userId})`);
+    
+    // Emit the actual username back to the client upon successful auth for display
     socket.emit('auth_successful', { username: username });
 
     
