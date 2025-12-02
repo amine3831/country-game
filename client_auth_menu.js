@@ -1,8 +1,5 @@
 // client_auth_menu.js - Handles Authentication Status and Game Mode Selection
 
-// NOTE: Ensure the 'socket' variable is accessible globally or defined here if not defined elsewhere.
-// For simplicity in a small app, we assume 'socket' is either a global variable or defined right here.
-
 let socket;
 const hostname = window.location.hostname;
 const protocol = window.location.protocol;
@@ -17,9 +14,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const username = urlParams.get('username');
 
     if (userId && username) {
-        // Successful login: Attempt to establish Socket.IO connection
         
-        // Define socket globally for access by other scripts (like main_game_logic.js)
         socket = io(fullUrl, {
             query: { userId: userId, username: username }
         });
@@ -27,15 +22,17 @@ document.addEventListener('DOMContentLoaded', () => {
         // Display username immediately
         document.getElementById('username-display').textContent = username;
         document.getElementById('welcome-message').style.display = 'flex';
-        document.getElementById('mode-selection').style.display = 'none'; // Keep hidden until confirmed
+        // Note: The mode-selection is initially hidden in the HTML, we show it on success
 
         // Listen for server confirmation
         socket.on('auth_successful', (data) => {
             console.log(`Socket authenticated as ${data.username}`);
             
-            // Show the main menu and hide status message
+            // ⭐ CRITICAL FIX: Explicitly show the mode selection menu
+            document.getElementById('mode-selection').style.display = 'flex'; // Make the menu visible
+            
+            // Hide status message and show logout button
             document.getElementById('status').style.display = 'none';
-            document.getElementById('mode-selection').style.display = 'flex';
             document.getElementById('logout-container').style.display = 'block'; 
         });
 
@@ -52,7 +49,7 @@ document.addEventListener('DOMContentLoaded', () => {
              document.getElementById('status').style.display = 'block';
         });
 
-        // --- 2. GAME MODE BUTTON HANDLERS ---
+        // --- 2. GAME MODE BUTTON HANDLERS (UNCHANGED) ---
         
         const simpleGameButton = document.getElementById('start-simple-game');
         const multiplayerButton = document.getElementById('start-multiplayer-button');
@@ -67,7 +64,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
         
-        // ⭐ CRITICAL MULTIPLAYER HANDLER FIX ⭐
+        // Multiplayer Handler
         if (multiplayerButton) {
             multiplayerButton.addEventListener('click', () => {
                 document.getElementById('mode-selection').style.display = 'none';
@@ -78,11 +75,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 statusEl.style.color = '#333';
                 statusEl.style.display = 'flex';
                 
-                // 1. Emit the correct event name to the server to start matchmaking
+                // Emit the correct event name to the server to start matchmaking
                 socket.emit('start_multiplayer'); 
-                
-                // 2. Load the main game UI (Assuming it's ready on index.html)
-                // Note: The UI swap logic must happen here or be managed by socket listeners in main_game_logic.js
             });
         }
 
