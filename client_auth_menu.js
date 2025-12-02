@@ -22,17 +22,15 @@ document.addEventListener('DOMContentLoaded', () => {
         // Display username immediately
         document.getElementById('username-display').textContent = username;
         document.getElementById('welcome-message').style.display = 'flex';
-        // Note: The mode-selection is initially hidden in the HTML, we show it on success
+        // The mode-selection display state relies on your CSS/HTML initial state here
 
         // Listen for server confirmation
         socket.on('auth_successful', (data) => {
             console.log(`Socket authenticated as ${data.username}`);
             
-            // ⭐ CRITICAL FIX: Explicitly show the mode selection menu
-            document.getElementById('mode-selection').style.display = 'flex'; // Make the menu visible
-            
-            // Hide status message and show logout button
+            // This is the CRITICAL block that was causing the regression
             document.getElementById('status').style.display = 'none';
+            document.getElementById('mode-selection').style.display = 'flex'; // This line might have been missing or styled incorrectly
             document.getElementById('logout-container').style.display = 'block'; 
         });
 
@@ -49,7 +47,7 @@ document.addEventListener('DOMContentLoaded', () => {
              document.getElementById('status').style.display = 'block';
         });
 
-        // --- 2. GAME MODE BUTTON HANDLERS (UNCHANGED) ---
+        // --- 2. GAME MODE BUTTON HANDLERS ---
         
         const simpleGameButton = document.getElementById('start-simple-game');
         const multiplayerButton = document.getElementById('start-multiplayer-button');
@@ -64,7 +62,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
         
-        // Multiplayer Handler
+        // Multiplayer Handler (This contains the working 'start_multiplayer' fix)
         if (multiplayerButton) {
             multiplayerButton.addEventListener('click', () => {
                 document.getElementById('mode-selection').style.display = 'none';
@@ -75,7 +73,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 statusEl.style.color = '#333';
                 statusEl.style.display = 'flex';
                 
-                // Emit the correct event name to the server to start matchmaking
+                // 1. Emit the correct event name to the server to start matchmaking
                 socket.emit('start_multiplayer'); 
             });
         }
