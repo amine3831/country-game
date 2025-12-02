@@ -1,12 +1,16 @@
-// client_auth_menu.js (REPLACED CONTENT)
+// client_auth_menu.js (EDITED CONTENT)
 
-// --- 1. AUTHENTICATION & INITIAL CONNECTION SETUP ---
+// --- 1. AUTHENTICATION & INITIAL CONNECTION SETUP (UPDATED) ---
+
+/** Helper to retrieve a URL query parameter. */
 function getQueryParameter(name) {
     const urlParams = new URLSearchParams(window.location.search);
     return urlParams.get(name);
 }
 
 const userId = getQueryParameter('userId');
+// ⭐ CRITICAL ADDITION: Retrieve the username from the URL
+const username = getQueryParameter('username'); 
 
 if (!userId) {
     window.location.href = '/login';
@@ -18,7 +22,9 @@ const RENDER_URL = window.location.protocol + "//" + window.location.host;
 // ⭐ Define the global 'socket' variable used by main_game_logic.js
 const socket = io(RENDER_URL, {
     query: {
-        userId: userId 
+        userId: userId,
+        // ⭐ CRITICAL ADDITION: Pass the retrieved username to the server
+        username: username 
     }
 });
 
@@ -39,8 +45,8 @@ function hideMenu() {
 
 /** 💡 UPDATED: Redirects to the simple_game.html page. */
 function startSimpleGame() {
-    // Preserve the userId in the URL for authentication on the new page
-    window.location.href = '/simple_game?userId=' + userId;
+    // Preserve the userId AND username in the URL for authentication on the new page
+    window.location.href = `/simple_game?userId=${userId}&username=${username}`;
 }
 
 /** Initiates the multiplayer matchmaking queue. */
@@ -70,9 +76,10 @@ const menuHTML = `
 `;
 
 // --- 4. SOCKET LISTENERS FOR AUTH & MENU DISPLAY ---
-// (No changes here, remains the same as previous)
+// (No changes needed in this section, as the auth_successful handler already uses data.username)
 
 socket.on('connect', () => {
+    // Note: We remove the username from the URL here to keep the URL clean
     history.replaceState(null, '', window.location.pathname); 
     document.getElementById('status').textContent = '✅ Connected. Authenticating...';
     if (typeof resetUI === 'function') {
@@ -87,6 +94,7 @@ socket.on('auth_successful', (data) => {
     const gameContainerEl = document.getElementById('game-container');
     const h1El = document.querySelector('h1');
     
+    // This line correctly uses the username sent back by the server
     document.getElementById('welcome-message').textContent = `Welcome, ${data.username}!`;
     
     statusEl.insertAdjacentHTML('beforebegin', menuHTML); 
