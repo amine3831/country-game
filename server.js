@@ -1,40 +1,20 @@
-// server.js (FINAL, UNIFIED CODE with Sign-up Message and Login Debugging)
+// server.js (FINAL, UNIFIED CODE - Dynamic Sign-up and Login)
 
 // --- 1. CORE IMPORTS & SERVER SETUP ---
 const path = require('path');
 const express = require('express');
 const http = require('http');
 const socketio = require('socket.io'); 
-// NOTE: fs/promises removed as persistence is not needed for testing
 
 const app = express();
 const server = http.createServer(app);
 const io = socketio(server);
 
 
-// --- 2. IN-MEMORY TESTING DATABASE (STOCK VARIABLES) ---
-// This array holds the users and can be added to dynamically.
-let users = [
-    {
-        id: 'user_a1b2', 
-        username: 'Player1',
-        email: 'p1@test.com',
-        password: 'password123', // Plain text for simple testing
-        name: 'Test Player One',
-        highScore: 15, // Test high score
-        createdAt: new Date().toISOString()
-    },
-    {
-        id: 'user_c3d4', 
-        username: 'Player2',
-        email: 'p2@test.com',
-        password: 'password123', // Plain text for simple testing
-        name: 'Test Player Two',
-        highScore: 8,
-        createdAt: new Date().toISOString()
-    }
-];
-console.log(`✅ In-Memory Test Database initialized with ${users.length} users.`);
+// --- 2. IN-MEMORY TESTING DATABASE (EMPTY) ---
+// Users will be added here dynamically via the /signup route.
+let users = []; 
+console.log(`✅ In-Memory Test Database initialized with ${users.length} users (empty).`);
 
 
 // --- 2.5 DATA LOADING (Flags and Groups - Unchanged) ---
@@ -185,7 +165,7 @@ app.get('/simple_game', (req, res) => {
 });
 
 
-// Signup adds user to in-memory array and prints a message.
+// ⭐ SIGN-UP LOGIC (Fully functional in-memory registration)
 app.post('/signup', (req, res) => {
     const { name, username, email, password } = req.body;
     
@@ -215,28 +195,8 @@ app.post('/signup', (req, res) => {
         
         console.log(`✅ New user signed up: ${username}. Total users: ${users.length}`);
         
-        // 3. Send the "Thank you" message response
-        res.send(`
-            <!DOCTYPE html>
-            <html lang="en">
-            <head>
-                <meta charset="UTF-8">
-                <title>Registration Complete</title>
-                <style>
-                    body { font-family: sans-serif; text-align: center; margin-top: 100px; }
-                    .container { padding: 40px; border: 1px solid #ccc; max-width: 400px; margin: auto; }
-                    .button-link { display: inline-block; padding: 10px 20px; background-color: #007bff; color: white; text-decoration: none; border-radius: 5px; margin-top: 20px; }
-                </style>
-            </head>
-            <body>
-                <div class="container">
-                    <h2>🎉 Thank you for registering, ${username}!</h2>
-                    <p>Your details have been saved (in memory for testing).</p>
-                    <a href="/login" class="button-link">Proceed to Login</a>
-                </div>
-            </body>
-            </html>
-        `);
+        // 3. Redirect back to login with a success status
+        res.redirect('/login?status=success&username=' + username);
         
     } catch (error) {
         console.error("Signup error:", error);
@@ -245,25 +205,18 @@ app.post('/signup', (req, res) => {
 });
 
 
-// ⭐ LOGIN ROUTE WITH DEBUGGING AND .trim() FIX ⭐
+// ⭐ LOGIN ROUTE (Cleaned and stabilized with .trim())
 app.post('/login', async (req, res) => {
     const { username, password } = req.body;
     
     const user = users.find(u => u.username === username);
     
     if (!user) {
-        // Log when the username is not found
         console.log(`[LOGIN FAILED] User not found: ${username}`);
         return res.status(401).send("Login failed: Invalid username or password.");
     }
-    
-    // ⭐ DEBUGGING LOG: Prints the values being compared ⭐
-    console.log(`[LOGIN ATTEMPT] User found: ${username}`);
-    console.log(`Submitted Password: "${password}"`);
-    console.log(`Stored Password:    "${user.password}"`);
-    // ⭐ END DEBUGGING LOG ⭐
 
-    // Trim both passwords to eliminate possible invisible spaces from form submission
+    // Trim both passwords to eliminate possible invisible spaces (stability fix)
     if (password.trim() === user.password.trim()) { 
         const userId = user.id;
         
@@ -377,7 +330,7 @@ const PORT = process.env.PORT || 3000;
 
 server.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
-    console.log('--- TEST CREDENTIALS ---');
-    console.log('Stock Users: Player1/password123, Player2/password123');
-    console.log('------------------------');
+    console.log('--- DYNAMIC TESTING READY ---');
+    console.log('1. Go to /signup to create an account.');
+    console.log('2. Immediately go to /login to test authentication.');
 });
