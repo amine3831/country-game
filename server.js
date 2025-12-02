@@ -1,4 +1,4 @@
-// server.js (FINAL, UNIFIED CODE with Sign-up Message and In-Memory Storage)
+// server.js (FINAL, UNIFIED CODE with Sign-up Message and Login Debugging)
 
 // --- 1. CORE IMPORTS & SERVER SETUP ---
 const path = require('path');
@@ -166,7 +166,7 @@ function startSimpleGameRound(playerId) {
 }
 
 
-// --- 5. EXPRESS ROUTES (Auth Logic Modified for Sign-up Message) ---
+// --- 5. EXPRESS ROUTES ---
 
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
@@ -185,7 +185,7 @@ app.get('/simple_game', (req, res) => {
 });
 
 
-// ⭐ MODIFIED: Signup now adds user to in-memory array and prints a message.
+// Signup adds user to in-memory array and prints a message.
 app.post('/signup', (req, res) => {
     const { name, username, email, password } = req.body;
     
@@ -245,17 +245,26 @@ app.post('/signup', (req, res) => {
 });
 
 
-// SIMPLIFIED: Login checks against the in-memory array
+// ⭐ LOGIN ROUTE WITH DEBUGGING AND .trim() FIX ⭐
 app.post('/login', async (req, res) => {
     const { username, password } = req.body;
     
     const user = users.find(u => u.username === username);
     
     if (!user) {
+        // Log when the username is not found
+        console.log(`[LOGIN FAILED] User not found: ${username}`);
         return res.status(401).send("Login failed: Invalid username or password.");
     }
+    
+    // ⭐ DEBUGGING LOG: Prints the values being compared ⭐
+    console.log(`[LOGIN ATTEMPT] User found: ${username}`);
+    console.log(`Submitted Password: "${password}"`);
+    console.log(`Stored Password:    "${user.password}"`);
+    // ⭐ END DEBUGGING LOG ⭐
 
-    if (password === user.password) {
+    // Trim both passwords to eliminate possible invisible spaces from form submission
+    if (password.trim() === user.password.trim()) { 
         const userId = user.id;
         
         console.log(`✅ User logged in: ${username}`);
@@ -263,6 +272,7 @@ app.post('/login', async (req, res) => {
         res.redirect(`/?userId=${userId}&username=${username}`); 
             
     } else {
+        console.log(`[LOGIN FAILED] Password mismatch for ${username}.`);
         res.status(401).send("Login failed: Invalid username or password.");
     }
 });
@@ -367,7 +377,7 @@ const PORT = process.env.PORT || 3000;
 
 server.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
-    console.log('Test Credentials (use these for login):');
-    console.log('  - Player1 / password123 (High Score: 15)');
-    console.log('  - Player2 / password123 (High Score: 8)');
+    console.log('--- TEST CREDENTIALS ---');
+    console.log('Stock Users: Player1/password123, Player2/password123');
+    console.log('------------------------');
 });
