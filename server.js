@@ -1,4 +1,4 @@
-// server.js (FINAL, UNIFIED CODE with IN-MEMORY TESTING DATABASE)
+// server.js (FINAL, UNIFIED CODE with Sign-up Message and In-Memory Storage)
 
 // --- 1. CORE IMPORTS & SERVER SETUP ---
 const path = require('path');
@@ -13,7 +13,7 @@ const io = socketio(server);
 
 
 // --- 2. IN-MEMORY TESTING DATABASE (STOCK VARIABLES) ---
-// This array simulates the database for testing authentication and game state.
+// This array holds the users and can be added to dynamically.
 let users = [
     {
         id: 'user_a1b2', 
@@ -34,7 +34,7 @@ let users = [
         createdAt: new Date().toISOString()
     }
 ];
-console.log(`✅ In-Memory Test Database loaded with ${users.length} users.`);
+console.log(`✅ In-Memory Test Database initialized with ${users.length} users.`);
 
 
 // --- 2.5 DATA LOADING (Flags and Groups - Unchanged) ---
@@ -133,7 +133,6 @@ function generateQuizOptions(correctCountry) {
 
 function startSimpleGameRound(playerId) {
     const game = simpleGames[playerId];
-    // ... (rest of startSimpleGameRound logic remains the same)
     if (!game) {
         console.error(`ERROR: Game object not found for playerId: ${playerId}`);
         return;
@@ -167,7 +166,7 @@ function startSimpleGameRound(playerId) {
 }
 
 
-// --- 5. EXPRESS ROUTES (Auth Logic Simplified for Testing) ---
+// --- 5. EXPRESS ROUTES (Auth Logic Modified for Sign-up Message) ---
 
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
@@ -186,32 +185,81 @@ app.get('/simple_game', (req, res) => {
 });
 
 
-// ⭐ SIMPLIFIED: Signup is now disabled, just redirects to login
+// ⭐ MODIFIED: Signup now adds user to in-memory array and prints a message.
 app.post('/signup', (req, res) => {
-    // For in-memory testing, we pre-stock users.
-    // Any sign-up attempt is redirected to login.
-    res.redirect('/login'); 
+    const { name, username, email, password } = req.body;
+    
+    if (!username || !password || !email) {
+        return res.status(400).send("Registration failed: Missing required fields.");
+    }
+
+    // Check if username already exists
+    if (users.find(u => u.username === username)) {
+        return res.status(409).send("Registration failed: Username already exists.");
+    }
+    
+    try {
+        // 1. Create the new user object
+        const newUser = {
+            id: 'user_' + Math.random().toString(36).substring(2, 10),
+            username: username,
+            email: email,
+            password: password, // Plain text for testing
+            name: name,
+            highScore: 0,
+            createdAt: new Date().toISOString()
+        };
+        
+        // 2. Add to in-memory array
+        users.push(newUser);
+        
+        console.log(`✅ New user signed up: ${username}. Total users: ${users.length}`);
+        
+        // 3. Send the "Thank you" message response
+        res.send(`
+            <!DOCTYPE html>
+            <html lang="en">
+            <head>
+                <meta charset="UTF-8">
+                <title>Registration Complete</title>
+                <style>
+                    body { font-family: sans-serif; text-align: center; margin-top: 100px; }
+                    .container { padding: 40px; border: 1px solid #ccc; max-width: 400px; margin: auto; }
+                    .button-link { display: inline-block; padding: 10px 20px; background-color: #007bff; color: white; text-decoration: none; border-radius: 5px; margin-top: 20px; }
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <h2>🎉 Thank you for registering, ${username}!</h2>
+                    <p>Your details have been saved (in memory for testing).</p>
+                    <a href="/login" class="button-link">Proceed to Login</a>
+                </div>
+            </body>
+            </html>
+        `);
+        
+    } catch (error) {
+        console.error("Signup error:", error);
+        res.status(500).send("Registration failed due to a server error.");
+    }
 });
 
 
-// ⭐ SIMPLIFIED: Login checks against the in-memory array
+// SIMPLIFIED: Login checks against the in-memory array
 app.post('/login', async (req, res) => {
     const { username, password } = req.body;
     
-    // Find user in the in-memory array
     const user = users.find(u => u.username === username);
     
     if (!user) {
         return res.status(401).send("Login failed: Invalid username or password.");
     }
 
-    // Check if submitted password matches stored plaintext password
     if (password === user.password) {
         const userId = user.id;
         
         console.log(`✅ User logged in: ${username}`);
         
-        // Pass the user's ID and username to the homepage
         res.redirect(`/?userId=${userId}&username=${username}`); 
             
     } else {
@@ -224,13 +272,12 @@ app.get('/logout', (req, res) => {
     res.redirect('/login');
 });
 
-// --- 6. SOCKET.IO EVENT HANDLERS (Updated for in-memory access) ---
+// --- 6. SOCKET.IO EVENT HANDLERS (unchanged) ---
 
 io.on('connection', (socket) => {
     const userId = socket.handshake.query.userId;
     let username = socket.handshake.query.username || 'Guest'; 
     
-    // Auth Check: Find user in the in-memory array
     const user = users.find(u => u.id === userId);
 
     if (!user) {
@@ -239,7 +286,6 @@ io.on('connection', (socket) => {
         return socket.disconnect(true);
     }
     
-    // Ensure the socket uses the verified username from the in-memory user object
     username = user.username;
     
     console.log(`[SOCKET] User connected: ${username} (ID: ${userId})`);
@@ -247,7 +293,7 @@ io.on('connection', (socket) => {
     socket.emit('auth_successful', { username: username });
 
     
-    // --- SIMPLE GAME HANDLERS (Updated High Score Logic) ---
+    // --- SIMPLE GAME HANDLERS (unchanged) ---
 
     socket.on('start_simple_session', () => {
         
@@ -266,7 +312,6 @@ io.on('connection', (socket) => {
             id: generateMatchId(), 
             playerId: socket.id, 
             currentStreak: 0,
-            // Use the user's high score from the in-memory array
             highScore: user.highScore || 0, 
             matchQuestions: shuffledQuestions, 
             currentQuestionIndex: -1,
@@ -298,10 +343,8 @@ io.on('connection', (socket) => {
             const finalStreak = game.currentStreak;
             
             if (finalStreak > user.highScore) { 
-                // CRITICAL: Update the user's high score in the in-memory array
                 user.highScore = finalStreak; 
                 game.highScore = finalStreak;
-                // NOTE: No saveUsers() needed, as it's an in-memory test.
                 console.log(`⭐ High score updated for ${user.username}: ${finalStreak}`);
             }
             
@@ -322,10 +365,9 @@ io.on('connection', (socket) => {
 
 const PORT = process.env.PORT || 3000;
 
-// CRITICAL: No need to load users, they are defined in memory.
 server.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
-    console.log('Test Credentials:');
+    console.log('Test Credentials (use these for login):');
     console.log('  - Player1 / password123 (High Score: 15)');
     console.log('  - Player2 / password123 (High Score: 8)');
 });
