@@ -1,4 +1,4 @@
-// main_game_logic.js (UPDATED FIX - Focus on Section 5)
+// main_game_logic.js - Handles the Multiplayer Match Flow and UI
 
 // --- 1. GLOBAL GAME STATE VARIABLES ---
 let currentMatchId = null;
@@ -9,6 +9,7 @@ let opponentScore = 0;
 let isP1 = false; 
 
 // --- 2. ELEMENT REFERENCES ---
+// Ensure these IDs exist in your index.html
 const gameContainerEl = document.getElementById('game-container');
 const statusEl = document.getElementById('status');
 const roundDisplayEl = document.getElementById('round-display');
@@ -21,45 +22,79 @@ const playerTimeEl = document.getElementById('player-time');
 const opponentTimeEl = document.getElementById('opponent-time');
 const scoreboardContainerEl = document.getElementById('scoreboard-container');
 
-// --- 3. VISUAL/STATE MANAGEMENT (UNCHANGED) ---
+// --- 3. VISUAL/STATE MANAGEMENT ---
+
+/**
+ * Resets the UI, showing or hiding the main quiz elements based on the game state.
+ * (Full implementation of resetUI is critical for proper UI transition)
+ */
 function resetUI(showRoundDisplay = true) {
-    // ... (Your existing resetUI function code remains here, unchanged)
+    // Clear all dynamic content
+    optionsContainerEl.innerHTML = '';
+    flagImageEl.src = 'data:image/gif;base64,R0GODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'; 
+    resultMessageEl.textContent = '';
+    playerTimeEl.textContent = 'YOU: --';
+    opponentTimeEl.textContent = 'OPPONENT: --';
+    
+    const elementsToToggle = [
+        roundDisplayEl, flagImageEl, optionsContainerEl, 
+        resultMessageEl, playerTimeEl.parentElement, opponentTimeEl.parentElement, scoreboardContainerEl
+    ];
+
+    elementsToToggle.forEach(el => {
+        if (el) el.style.display = showRoundDisplay ? (el.id === 'options-container' ? 'flex' : 'block') : 'none';
+    });
+    
+    if (showRoundDisplay) {
+        document.querySelector('h1').style.display = 'none';
+        gameContainerEl.classList.remove('centered-status');
+        statusEl.style.display = 'flex'; 
+    } else {
+        document.querySelector('h1').style.display = 'flex';
+        gameContainerEl.classList.add('centered-status');
+        
+        const modeSelectionEl = document.getElementById('mode-selection');
+        if (modeSelectionEl && modeSelectionEl.style.display === 'flex') {
+            statusEl.style.display = 'none';
+        } else {
+             statusEl.style.display = 'flex';
+        }
+        
+        document.querySelector('#player-score-container .label').textContent = 'YOU';
+        document.querySelector('#opponent-score-container .label').textContent = 'OPPONENT';
+    }
 }
 
-// --- 4. SOCKET LISTENERS (Event names need to be reviewed for consistency) ---
+// --- 4. SOCKET LISTENERS (CRITICAL FIX: Correct Event Names) ---
 
-// NOTE: Socket events from server.js are 'searching', 'match_started', 'multiplayer_new_round', 'multiplayer_feedback', 'match_game_over', 'match_ended_opponent_disconnect'
-// Ensure your client listener names match these. I will use the corrected server names below:
-
-socket.on('searching', () => { // Corrected from 'waiting_for_opponent' to match server log/intent
+socket.on('searching', () => { 
     statusEl.textContent = '⏱️ Searching for opponent...';
     statusEl.style.color = getCssVar('--text-color');
     resetUI(false);
 });
 
-socket.on('match_started', (data) => { // Corrected from 'match_found' to match server emission
+socket.on('match_started', (data) => {
     currentMatchId = data.matchId;
     
-    // Determine my ID and map it to P1/P2 status
     const myId = socket.id;
-    isP1 = (Object.keys(data.playerMap)[0] === myId); // If my ID is the first key, I am P1
+    isP1 = (Object.keys(data.playerMap)[0] === myId); 
 
     statusEl.textContent = `🤝 Match Found! Opponent: ${data.opponent}. Getting ready...`;
     
-    // Reset scores for a new match
     myScore = 0;
     opponentScore = 0;
     playerScoreEl.textContent = myScore;
     opponentScoreEl.textContent = opponentScore;
     
+    // Server will send 'multiplayer_new_round' after this 3s timeout
     setTimeout(() => {
         statusEl.textContent = '';
     }, 3000); 
 });
 
-socket.on('multiplayer_new_round', (data) => { // Corrected from 'new_round' to match server emission
+socket.on('multiplayer_new_round', (data) => { 
     isAnswered = false;
-    resetUI(true); // Show quiz elements
+    resetUI(true); 
     
     roundStartTime = Date.now(); 
     
@@ -68,14 +103,23 @@ socket.on('multiplayer_new_round', (data) => { // Corrected from 'new_round' to 
     roundDisplayEl.textContent = `▶️ Round ${data.roundNumber} of ${data.maxRounds}`;
     flagImageEl.src = data.image;
 
-    // Reset button colors and enable them
+    // Update scores using the username map from the server
+    const myUsername = document.getElementById('username-display').textContent; 
+    const scoreEntries = Object.entries(data.scores);
+    const myScoreEntry = scoreEntries.find(([name]) => name === myUsername);
+    const oppScoreEntry = scoreEntries.find(([name]) => name !== myUsername);
+
+    playerScoreEl.textContent = myScoreEntry ? myScoreEntry[1] : 0;
+    opponentScoreEl.textContent = oppScoreEntry ? oppScoreEntry[1] : 0;
+    
+    // Reset buttons
     optionsContainerEl.querySelectorAll('.option-button').forEach(btn => {
         btn.classList.remove('correct', 'incorrect', 'selected');
         btn.disabled = false;
     });
     
     // Populate options
-    optionsContainerEl.innerHTML = ''; // Clear previous buttons
+    optionsContainerEl.innerHTML = ''; 
     data.options.forEach(optionText => {
         const button = document.createElement('button');
         button.className = 'option-button';
@@ -86,11 +130,11 @@ socket.on('multiplayer_new_round', (data) => { // Corrected from 'new_round' to 
     
     resultMessageEl.textContent = 'Select the correct country!';
     resultMessageEl.style.color = getCssVar('--text-color');
+    playerTimeEl.textContent = 'YOU: --';
+    opponentTimeEl.textContent = 'OPPONENT: --';
 });
 
-socket.on('multiplayer_feedback', (data) => { // Corrected from 'answer_registered' to match server intent
-    // This event is only feedback on MY answer, NOT the opponent's.
-    // Opponent answer feedback is integrated into round_results/next_round timing.
+socket.on('multiplayer_feedback', (data) => { 
     const selectedButton = optionsContainerEl.querySelector('.option-button.selected');
 
     if (data.isCorrect) {
@@ -99,64 +143,71 @@ socket.on('multiplayer_feedback', (data) => { // Corrected from 'answer_register
         resultMessageEl.style.color = getCssVar('--success-color');
     } else {
         selectedButton.classList.add('incorrect');
-        resultMessageEl.textContent = '❌ INCORRECT. Waiting for opponent...';
+        // Highlight the correct answer
+        optionsContainerEl.querySelectorAll('.option-button').forEach(btn => {
+            if (btn.textContent === data.correctAnswer) {
+                btn.classList.add('correct');
+            }
+        });
+        resultMessageEl.textContent = `❌ INCORRECT. Correct was ${data.correctAnswer}. Waiting for opponent...`;
         resultMessageEl.style.color = getCssVar('--error-color');
     }
-    playerTimeEl.textContent = `YOU: Answered`; // Simple visual confirmation
     
-    // Disable all buttons after feedback
+    playerTimeEl.textContent = `YOU: Answered`; 
     optionsContainerEl.querySelectorAll('.option-button').forEach(btn => btn.disabled = true);
 });
 
-
-socket.on('round_results', (data) => {
-    // NOTE: The server doesn't emit 'round_results', it emits the next round immediately.
-    // If you need a separate result screen, we need to change the server code.
-    // Assuming you meant 'multiplayer_new_round' handles the score update implicitly.
-
-    // *** THIS SECTION IS LIKELY UNUSED/BROKEN DUE TO SERVER LOGIC ***
-    // The server does not send individual player times, only final scores in the next round data.
-    // For now, removing complex logic here until server logic is updated to send this data.
-
-    // ... (Removing old complex score/time logic) ...
-
-    // The simplest fix is to show the correct answer and wait for the new round event.
-    optionsContainerEl.querySelectorAll('.option-button').forEach(button => {
-        if (button.textContent === data.correctAnswer) {
-            button.classList.add('correct');
-        }
-    });
-
-    // We rely on the 'multiplayer_new_round' event to update scores and progress.
-    resultMessageEl.textContent = `The correct answer was ${data.correctAnswer}. Loading next round...`;
-    resultMessageEl.style.color = getCssVar('--text-color');
-});
-
-socket.on('match_game_over', (data) => { // Corrected from 'game_over'
-    // ... (Your existing game_over function code remains here, relying on data.scores for final tally)
+socket.on('match_game_over', (data) => { 
+    resetUI(false); 
     
-    // Map final scores using the playerMap (data.scores is an array of {username, score})
-    const myUsername = document.getElementById('username-display').textContent; // Assuming you have this
-    
+    const myUsername = document.getElementById('username-display').textContent;
     const localScoreData = data.scores.find(s => s.username === myUsername);
     const oppScoreData = data.scores.find(s => s.username !== myUsername);
     
     const localScore = localScoreData ? localScoreData.score : 0;
     const oppScore = oppScoreData ? oppScoreData.score : 0;
+    const finalScore = `Final Score: ${localScore} - ${oppScore}`;
+    let message = '';
+    let color = getCssVar('--text-color');
+
+    if (data.winner === myUsername) {
+        message = `🎉 YOU WON! ${finalScore}`;
+        color = getCssVar('--success-color');
+    } else if (data.winner === 'Tie') {
+        message = `🤝 DRAW. ${finalScore}`;
+        color = getCssVar('--text-color');
+    } else {
+        message = `😭 YOU LOST. ${finalScore}`;
+        color = getCssVar('--error-color');
+    }
     
-    // ... (Rest of game_over logic) ...
+    statusEl.textContent = message;
+    statusEl.style.color = color;
+    playerScoreEl.textContent = localScore;
+    opponentScoreEl.textContent = oppScore;
+    scoreboardContainerEl.style.display = 'flex';
+    
+    setTimeout(() => {
+        statusEl.textContent += ' Click here to choose a new game mode!';
+        statusEl.style.cursor = 'pointer';
+        statusEl.onclick = () => window.location.reload(); 
+    }, 5000);
 });
 
-socket.on('match_ended_opponent_disconnect', (data) => { // Corrected from 'opponent_disconnected'
+socket.on('match_ended_opponent_disconnect', (data) => { 
     resetUI(false);
     statusEl.textContent = `🚨 Opponent disconnected! You win by forfeit.`;
     statusEl.style.color = getCssVar('--error-color');
     
-    // ... (Rest of disconnect logic) ...
+    setTimeout(() => {
+        statusEl.textContent += ' Click here to choose a new game mode!';
+        statusEl.style.cursor = 'pointer';
+        statusEl.onclick = () => window.location.reload(); 
+    }, 3000);
 });
 
 
-// --- 5. USER INPUT HANDLER (CRITICAL FIX) ---
+// --- 5. USER INPUT HANDLER (CRITICAL FIX: Correct Emission Name) ---
 
 function handleAnswer(answer, selectedButton) {
     if (isAnswered || !currentMatchId) return;
@@ -171,7 +222,7 @@ function handleAnswer(answer, selectedButton) {
         }
     });
     
-    // ⭐ CRITICAL FIX: Emit the correct event name for the server
+    // ⭐ CRITICAL FIX: The server expects this exact event name
     socket.emit('submit_multiplayer_answer', {
         matchId: currentMatchId,
         answer: answer
@@ -182,7 +233,8 @@ function handleAnswer(answer, selectedButton) {
     playerTimeEl.textContent = `YOU: Submitting...`;
 }
 
-// --- 6. UTILITY (UNCHANGED) ---
+// --- 6. UTILITY ---
+
 function getCssVar(name) {
     return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 }
