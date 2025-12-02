@@ -60,21 +60,54 @@
             color: #28a745; 
             text-decoration: none; 
         }
+        #message {
+            text-align: center;
+            padding: 10px;
+            margin-bottom: 15px;
+            border-radius: 4px;
+            font-weight: bold;
+            color: #155724;
+            background-color: #d4edda;
+            border: 1px solid #c3e6cb;
+            display: none; /* Initially hidden */
+        }
     </style>
 </head>
 <body>
     <div class="container">
+        <div id="message"></div>
+        
         <h2>Log In to Flag Quiz</h2>
         <form action="/login" method="POST">
-            <label for="usernameOrEmail">Username or Email</label>
-            <input type="text" id="usernameOrEmail" name="usernameOrEmail" required>
+            <label for="username">Username or Email</label>
+            <input type="text" id="username" name="username" placeholder="Enter username or email" required>
 
             <label for="password">Password</label>
-            <input type="password" id="password" name="password" required>
+            <input type="password" id="password" name="password" placeholder="Enter password" required>
 
             <button type="submit">Log In</button>
         </form>
         <a href="/signup">Need an account? Sign up here.</a>
     </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const status = urlParams.get('status');
+            const username = urlParams.get('username');
+            const messageElement = document.getElementById('message');
+
+            if (status === 'success') {
+                messageElement.textContent = `Registration for ${username} successful! Please log in.`;
+                messageElement.style.display = 'block';
+                
+                // Set the username field to the registered username for convenience
+                const usernameInput = document.getElementById('username');
+                if (usernameInput && username) {
+                    usernameInput.value = username;
+                }
+            }
+        });
+    </script>
 </body>
 </html>
