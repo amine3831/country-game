@@ -394,7 +394,7 @@ io.on('connection', (socket) => {
     });
 
     
-    // --- MULTIPLAYER HANDLERS ---
+    // --- MULTIPLAYER HANDLERS (STABILIZED) ---
 
     socket.on('start_multiplayer', () => {
         if (!flagData || flagData.length === 0) {
@@ -406,12 +406,20 @@ io.on('connection', (socket) => {
         if (waitingPlayer && waitingPlayer.id !== socket.id) {
             // Player 2 found: Start the Match
             
-            const player1Socket = io.sockets.sockets.get(waitingPlayer.id);
+            // Define Player 1 (the one waiting)
+            const player1Id = waitingPlayer.id;
+            const player1Username = waitingPlayer.username;
+            const player1Socket = io.sockets.sockets.get(player1Id);
+            
+            // Define Player 2 (the one joining now)
+            const player2Id = socket.id;
+            const player2Username = username;
             const player2Socket = socket;
             
             if (!player1Socket) {
-                console.error(`ERROR: Waiting player socket (${waitingPlayer.id}) not found. Resetting.`);
-                waitingPlayer = { id: socket.id, username: username };
+                // Critical safety check: If the waiting player disconnected right before this, reset.
+                console.error(`ERROR: Waiting player socket (${player1Id}) not found. Resetting waiting list.`);
+                waitingPlayer = { id: player2Id, username: player2Username };
                 return socket.emit('searching');
             }
 
@@ -421,8 +429,8 @@ io.on('connection', (socket) => {
             const match = {
                 id: matchId,
                 players: {
-                    [waitingPlayer.id]: { username: waitingPlayer.username, score: 0, socket: player1Socket },
-                    [socket.id]: { username: username, score: 0, socket: player2Socket },
+                    [player1Id]: { username: player1Username, score: 0, socket: player1Socket },
+                    [player2Id]: { username: player2Username, score: 0, socket: player2Socket },
                 },
                 questionIndex: -1,
                 questions: matchQuestions,
@@ -433,22 +441,21 @@ io.on('connection', (socket) => {
             activeMatches[matchId] = match;
 
             // Clear the waiting list
-            const p1Username = waitingPlayer.username; // Capture for logging
             waitingPlayer = null;
 
             // Group the two sockets into a single room for easy communication
             player1Socket.join(matchId);
             player2Socket.join(matchId);
 
-            console.log(`✅ MATCH STARTED: ${p1Username} vs ${username} (ID: ${matchId})`);
+            console.log(`✅ MATCH STARTED: ${player1Username} vs ${player2Username} (ID: ${matchId})`);
             
             // Notify both players the match has started
             io.to(matchId).emit('match_started', {
                 matchId: matchId,
-                opponent: socket.id === player1Socket.id ? username : p1Username,
+                opponent: player2Username, // The name of the opponent for Player 1
                 playerMap: {
-                    [player1Socket.id]: p1Username,
-                    [player2Socket.id]: username
+                    [player1Id]: player1Username,
+                    [player2Id]: player2Username
                 }
             });
 
