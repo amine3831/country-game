@@ -21,13 +21,10 @@ const opponentScoreEl = document.getElementById('opponent-score');
 const playerTimeEl = document.getElementById('player-time');
 const opponentTimeEl = document.getElementById('opponent-time');
 const scoreboardContainerEl = document.getElementById('scoreboard-container');
+const myUsername = document.getElementById('username-display').textContent; 
 
-// --- 3. VISUAL/STATE MANAGEMENT ---
+// --- 3. VISUAL/STATE MANAGEMENT (UNCHANGED) ---
 
-/**
- * Resets the UI, showing or hiding the main quiz elements based on the game state.
- * (Full implementation of resetUI is critical for proper UI transition)
- */
 function resetUI(showRoundDisplay = true) {
     // Clear all dynamic content
     optionsContainerEl.innerHTML = '';
@@ -65,7 +62,7 @@ function resetUI(showRoundDisplay = true) {
     }
 }
 
-// --- 4. SOCKET LISTENERS (CRITICAL FIX: Correct Event Names) ---
+// --- 4. SOCKET LISTENERS (FIXED LOGIC) ---
 
 socket.on('searching', () => { 
     statusEl.textContent = '⏱️ Searching for opponent...';
@@ -76,25 +73,23 @@ socket.on('searching', () => {
 socket.on('match_started', (data) => {
     currentMatchId = data.matchId;
     
-    const myId = socket.id;
-    isP1 = (Object.keys(data.playerMap)[0] === myId); 
+    // Determine opponent's name from playerMap (since data.opponent is sometimes undefined)
+    const opponentUsername = Object.values(data.playerMap).find(name => name !== myUsername) || 'Opponent';
 
-    statusEl.textContent = `🤝 Match Found! Opponent: ${data.opponent}. Getting ready...`;
+    statusEl.textContent = `🤝 Match Found! Opponent: ${opponentUsername}. Getting ready...`;
     
     myScore = 0;
     opponentScore = 0;
     playerScoreEl.textContent = myScore;
     opponentScoreEl.textContent = opponentScore;
     
-    // Server will send 'multiplayer_new_round' after this 3s timeout
-    setTimeout(() => {
-        statusEl.textContent = '';
-    }, 3000); 
+    // Server will send 'multiplayer_new_round' after the 1s delay (from server.js)
+    // We rely on that event to switch the UI from 'searching' to 'game'.
 });
 
 socket.on('multiplayer_new_round', (data) => { 
     isAnswered = false;
-    resetUI(true); 
+    resetUI(true); // Show quiz elements
     
     roundStartTime = Date.now(); 
     
@@ -103,14 +98,16 @@ socket.on('multiplayer_new_round', (data) => {
     roundDisplayEl.textContent = `▶️ Round ${data.roundNumber} of ${data.maxRounds}`;
     flagImageEl.src = data.image;
 
-    // Update scores using the username map from the server
-    const myUsername = document.getElementById('username-display').textContent; 
-    const scoreEntries = Object.entries(data.scores);
-    const myScoreEntry = scoreEntries.find(([name]) => name === myUsername);
-    const oppScoreEntry = scoreEntries.find(([name]) => name !== myUsername);
+    // FIX A: Robustly update scores using the username map from the server
+    const scoreMap = data.scores || {};
+    const localScore = scoreMap[myUsername] || 0;
+    
+    // Find opponent's username and score
+    const opponentUsername = Object.keys(scoreMap).find(name => name !== myUsername);
+    const opponentScore = opponentUsername ? scoreMap[opponentUsername] : 0;
 
-    playerScoreEl.textContent = myScoreEntry ? myScoreEntry[1] : 0;
-    opponentScoreEl.textContent = oppScoreEntry ? oppScoreEntry[1] : 0;
+    playerScoreEl.textContent = localScore;
+    opponentScoreEl.textContent = opponentScore;
     
     // Reset buttons
     optionsContainerEl.querySelectorAll('.option-button').forEach(btn => {
@@ -160,7 +157,7 @@ socket.on('multiplayer_feedback', (data) => {
 socket.on('match_game_over', (data) => { 
     resetUI(false); 
     
-    const myUsername = document.getElementById('username-display').textContent;
+    // The server sends data.scores as an array of {username, score}
     const localScoreData = data.scores.find(s => s.username === myUsername);
     const oppScoreData = data.scores.find(s => s.username !== myUsername);
     
@@ -177,6 +174,7 @@ socket.on('match_game_over', (data) => {
         message = `🤝 DRAW. ${finalScore}`;
         color = getCssVar('--text-color');
     } else {
+        // Opponent won (data.winner is the opponent's username)
         message = `😭 YOU LOST. ${finalScore}`;
         color = getCssVar('--error-color');
     }
@@ -222,7 +220,7 @@ function handleAnswer(answer, selectedButton) {
         }
     });
     
-    // ⭐ CRITICAL FIX: The server expects this exact event name
+    // Correctly emits the 'submit_multiplayer_answer' event expected by the server
     socket.emit('submit_multiplayer_answer', {
         matchId: currentMatchId,
         answer: answer
@@ -233,7 +231,7 @@ function handleAnswer(answer, selectedButton) {
     playerTimeEl.textContent = `YOU: Submitting...`;
 }
 
-// --- 6. UTILITY ---
+// --- 6. UTILITY (UNCHANGED) ---
 
 function getCssVar(name) {
     return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
