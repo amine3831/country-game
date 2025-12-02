@@ -1,116 +1,103 @@
-// client_auth_menu.js (EDITED CONTENT)
+// client_auth_menu.js - Handles Authentication Status and Game Mode Selection
 
-// --- 1. AUTHENTICATION & INITIAL CONNECTION SETUP (UPDATED) ---
+// NOTE: Ensure the 'socket' variable is accessible globally or defined here if not defined elsewhere.
+// For simplicity in a small app, we assume 'socket' is either a global variable or defined right here.
 
-/** Helper to retrieve a URL query parameter. */
-function getQueryParameter(name) {
+let socket;
+const hostname = window.location.hostname;
+const protocol = window.location.protocol;
+const port = window.location.port ? `:${window.location.port}` : '';
+const fullUrl = `${protocol}//${hostname}${port}`;
+
+document.addEventListener('DOMContentLoaded', () => {
+    
+    // --- 1. INITIAL AUTHENTICATION CHECK ---
     const urlParams = new URLSearchParams(window.location.search);
-    return urlParams.get(name);
-}
+    const userId = urlParams.get('userId');
+    const username = urlParams.get('username');
 
-const userId = getQueryParameter('userId');
-// ⭐ CRITICAL ADDITION: Retrieve the username from the URL
-const username = getQueryParameter('username'); 
-
-if (!userId) {
-    window.location.href = '/login';
-    throw new Error("Unauthenticated access. Redirecting."); 
-}
-
-const RENDER_URL = window.location.protocol + "//" + window.location.host;
-
-// ⭐ Define the global 'socket' variable used by main_game_logic.js
-const socket = io(RENDER_URL, {
-    query: {
-        userId: userId,
-        // ⭐ CRITICAL ADDITION: Pass the retrieved username to the server
-        username: username 
-    }
-});
-
-
-// --- 2. GAME MODE FUNCTIONS (Updated for Simple Game Redirection) ---
-
-/** Hides the menu and shows the status element. */
-function hideMenu() {
-    const modeSelectionEl = document.getElementById('mode-selection');
-    const statusEl = document.getElementById('status');
-    const gameContainerEl = document.getElementById('game-container');
-    
-    if (modeSelectionEl) modeSelectionEl.style.display = 'none';
-    if (statusEl) statusEl.style.display = 'flex';
-    
-    if (gameContainerEl) gameContainerEl.classList.add('centered-status');
-}
-
-/** 💡 UPDATED: Redirects to the simple_game.html page. */
-function startSimpleGame() {
-    // Preserve the userId AND username in the URL for authentication on the new page
-    window.location.href = `/simple_game?userId=${userId}&username=${username}`;
-}
-
-/** Initiates the multiplayer matchmaking queue. */
-function startMultiplayerMatch() {
-    hideMenu();
-    socket.emit('request_multiplayer_match'); 
-    document.getElementById('status').textContent = '⏱️ Searching for live opponent...';
-}
-
-/** Placeholder for tournament mode. */
-function startTournament() {
-    alert("Tournaments are not yet available. Please choose another mode!");
-}
-
-
-// --- 3. MENU HTML DEFINITION (Updated Button) ---
-
-const menuHTML = `
-    <div id="mode-selection" style="display: none; flex-direction: column; width: 80%; max-width: 400px; margin-top: 5vh; text-align: center;">
-        <h2 style="color: var(--primary-color); margin-bottom: 20px;">Choose Your Game</h2>
+    if (userId && username) {
+        // Successful login: Attempt to establish Socket.IO connection
         
-        <button class="menu-button" onclick="startSimpleGame()">⭐ Start Simple Game (Highest Streak)</button> 
+        // Define socket globally for access by other scripts (like main_game_logic.js)
+        socket = io(fullUrl, {
+            query: { userId: userId, username: username }
+        });
+
+        // Display username immediately
+        document.getElementById('username-display').textContent = username;
+        document.getElementById('welcome-message').style.display = 'flex';
+        document.getElementById('mode-selection').style.display = 'none'; // Keep hidden until confirmed
+
+        // Listen for server confirmation
+        socket.on('auth_successful', (data) => {
+            console.log(`Socket authenticated as ${data.username}`);
+            
+            // Show the main menu and hide status message
+            document.getElementById('status').style.display = 'none';
+            document.getElementById('mode-selection').style.display = 'flex';
+            document.getElementById('logout-container').style.display = 'block'; 
+        });
+
+        // Handle unauthorized or invalid user ID
+        socket.on('unauthorized_access', () => {
+            console.error("Authentication failed. Redirecting to login.");
+            window.location.href = '/login';
+        });
+
+        // Handle general server errors
+        socket.on('server_error', (data) => {
+             document.getElementById('status').textContent = `Server Error: ${data.message}`;
+             document.getElementById('status').style.color = 'red';
+             document.getElementById('status').style.display = 'block';
+        });
+
+        // --- 2. GAME MODE BUTTON HANDLERS ---
         
-        <button class="menu-button" onclick="startMultiplayerMatch()">🤝 Start Multiplayer Match</button>
-        <button class="menu-button" onclick="startTournament()">🏆 Start a Tournament (Coming Soon)</button>
-    </div>
-`;
+        const simpleGameButton = document.getElementById('start-simple-game');
+        const multiplayerButton = document.getElementById('start-multiplayer-button');
 
-// --- 4. SOCKET LISTENERS FOR AUTH & MENU DISPLAY ---
-// (No changes needed in this section, as the auth_successful handler already uses data.username)
+        // Simple Game Handler
+        if (simpleGameButton) {
+            simpleGameButton.addEventListener('click', () => {
+                document.getElementById('mode-selection').style.display = 'none';
+                
+                // Navigate to the simple game page
+                window.location.href = '/simple_game' + window.location.search;
+            });
+        }
+        
+        // ⭐ CRITICAL MULTIPLAYER HANDLER FIX ⭐
+        if (multiplayerButton) {
+            multiplayerButton.addEventListener('click', () => {
+                document.getElementById('mode-selection').style.display = 'none';
+                
+                // Show waiting status
+                const statusEl = document.getElementById('status');
+                statusEl.textContent = '⏱️ Searching for opponent...';
+                statusEl.style.color = '#333';
+                statusEl.style.display = 'flex';
+                
+                // 1. Emit the correct event name to the server to start matchmaking
+                socket.emit('start_multiplayer'); 
+                
+                // 2. Load the main game UI (Assuming it's ready on index.html)
+                // Note: The UI swap logic must happen here or be managed by socket listeners in main_game_logic.js
+            });
+        }
 
-socket.on('connect', () => {
-    // Note: We remove the username from the URL here to keep the URL clean
-    history.replaceState(null, '', window.location.pathname); 
-    document.getElementById('status').textContent = '✅ Connected. Authenticating...';
-    if (typeof resetUI === 'function') {
-         resetUI(false); 
+
     } else {
-        document.getElementById('game-container').classList.add('centered-status');
+        // Not logged in: Redirect to login page
+        window.location.href = '/login';
     }
 });
 
-socket.on('auth_successful', (data) => {
-    const statusEl = document.getElementById('status');
-    const gameContainerEl = document.getElementById('game-container');
-    const h1El = document.querySelector('h1');
-    
-    // This line correctly uses the username sent back by the server
-    document.getElementById('welcome-message').textContent = `Welcome, ${data.username}!`;
-    
-    statusEl.insertAdjacentHTML('beforebegin', menuHTML); 
-    
-    statusEl.style.display = 'none';
-    document.getElementById('mode-selection').style.display = 'flex';
-    
-    if (gameContainerEl) gameContainerEl.classList.add('centered-status');
-    if (h1El) h1El.style.display = 'flex';
-    
-    if (typeof resetUI === 'function') {
-        resetUI(false); 
-    }
-});
-
-socket.on('unauthorized_access', () => {
-    alert("Authentication failed. Redirecting to login.");
-    window.location.href = '/login';
-});
+// --- 3. LOGOUT HANDLER (UNCHANGED) ---
+const logoutButton = document.getElementById('logout-button');
+if (logoutButton) {
+    logoutButton.addEventListener('click', () => {
+        // Clear query parameters (simulates session end for this testing phase)
+        window.location.href = '/logout';
+    });
+}
