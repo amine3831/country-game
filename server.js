@@ -1,4 +1,4 @@
-// server.js (FINAL, UNIFIED CODE with Simple Plaintext JSON Database)
+// server.js (FINAL, UNIFIED CODE with Simple Plaintext JSON Database and Stability Fixes)
 
 // --- 1. CORE IMPORTS & SERVER SETUP ---
 const path = require('path');
@@ -7,14 +7,10 @@ const http = require('http');
 const socketio = require('socket.io'); 
 const fs = require('fs/promises'); // Use fs/promises for async file operations
 
-// NOTE: bcrypt removed as requested
-// const bcrypt = require('bcrypt'); 
-
 const app = express();
 const server = http.createServer(app);
 const io = socketio(server);
 
-// Removed SALT_ROUNDS
 const DB_FILE = path.join(__dirname, 'db.json');
 
 // --- 2. DATA LOADING & DB MANAGEMENT ---
@@ -32,23 +28,26 @@ async function loadUsers() {
         if (error.code === 'ENOENT') {
             console.warn("⚠️ WARNING: db.json file not found. Starting with an empty database.");
             users = [];
-            await saveUsers(); // Create the file
+            // Attempt to create the file so subsequent writes work
+            await saveUsers(); 
         } else {
             console.error("❌ CRITICAL ERROR: Failed to load db.json:", error.message);
         }
     }
 }
 
-/** Writes current in-memory user data back to db.json */
+/** Writes current in-memory user data back to db.json (ENHANCED ERROR LOGGING) */
 async function saveUsers() {
     try {
         await fs.writeFile(DB_FILE, JSON.stringify(users, null, 2));
+        console.log(`✅ Database saved successfully to ${DB_FILE}. Current user count: ${users.length}`);
     } catch (error) {
-        console.error("❌ CRITICAL ERROR: Failed to save db.json:", error.message);
+        // Log the exact error if saving fails (e.g., permission issue)
+        console.error("❌ CRITICAL ERROR: Failed to save db.json. Check file permissions or disk space:", error.message);
+        // Re-throw the error so the calling route (like /signup) can handle the failure
+        throw new Error("Failed to save user data."); 
     }
 }
-
-// NOTE: hashPassword and bcrypt removed as requested
 
 // Data loading for flags and groups (unchanged)
 try {
@@ -176,7 +175,7 @@ function startSimpleGameRound(playerId) {
 }
 
 
-// --- 5. EXPRESS ROUTES (Authentication Logic Rewritten to Simple) ---
+// --- 5. EXPRESS ROUTES ---
 
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
@@ -195,7 +194,7 @@ app.get('/simple_game', (req, res) => {
 });
 
 
-// ⭐ REWRITTEN: POST route to handle user registration and save plaintext password
+// ⭐ REFINED: POST route to handle user registration and ensure persistence
 app.post('/signup', async (req, res) => {
     const { name, username, email, password } = req.body;
     
@@ -203,7 +202,8 @@ app.post('/signup', async (req, res) => {
         return res.status(400).send("Registration failed: Missing required fields.");
     }
 
-    // Check if username or email already exists
+    // Check if username or email already exists (This check uses in-memory data, which is why 
+    // it was correctly reporting "exists" even when the save failed previously)
     if (users.find(u => u.username === username)) {
         return res.status(409).send("Registration failed: Username already exists.");
     }
@@ -211,33 +211,36 @@ app.post('/signup', async (req, res) => {
         return res.status(409).send("Registration failed: Email already exists.");
     }
 
+    const newUser = {
+        id: 'user_' + Math.random().toString(36).substring(2, 10),
+        username: username,
+        email: email,
+        password: password, // Plain text as requested
+        name: name,
+        highScore: 0,
+        createdAt: new Date().toISOString()
+    };
+    
+    // Add to in-memory array first
+    users.push(newUser);
+    
     try {
-        // 1. Create the new user object (storing password in plain text as requested)
-        const newUser = {
-            id: 'user_' + Math.random().toString(36).substring(2, 10),
-            username: username,
-            email: email,
-            password: password, // WARNING: Stored in plain text
-            name: name,
-            highScore: 0,
-            createdAt: new Date().toISOString()
-        };
-        
-        // 2. Save the new user and write to file
-        users.push(newUser);
-        await saveUsers();
+        // ⭐ CRITICAL FIX: Ensure the save operation completes before moving on.
+        await saveUsers(); 
         
         console.log(`✅ New user signed up: ${username}. Total users: ${users.length}`);
         res.redirect('/login'); 
         
     } catch (error) {
-        console.error("Signup error:", error);
-        res.status(500).send("Registration failed due to a server error.");
+        // If saveUsers() failed, we must remove the user from the in-memory array
+        // to keep memory consistent with the file, allowing the user to try again.
+        users.pop(); 
+        console.error("Signup persistence failed:", error.message); 
+        res.status(500).send("Registration failed: Server error saving data. Please check logs for file permission issues.");
     }
 });
 
 
-// ⭐ REWRITTEN: POST route to handle user login and check plaintext password
 app.post('/login', async (req, res) => {
     const { username, password } = req.body;
     
@@ -247,14 +250,12 @@ app.post('/login', async (req, res) => {
         return res.status(401).send("Login failed: Invalid username or password.");
     }
 
-    // 1. Check if submitted password matches stored plaintext password
     if (password === user.password) {
         // Authentication successful
         const userId = user.id;
         
         console.log(`✅ User logged in: ${username}`);
         
-        // Pass the user's ID and username to the homepage
         res.redirect(`/?userId=${userId}&username=${username}`); 
             
     } else {
@@ -265,17 +266,15 @@ app.post('/login', async (req, res) => {
 
 
 app.get('/logout', (req, res) => {
-    // Session cleanup logic would go here
     res.redirect('/login');
 });
 
-// --- 6. SOCKET.IO EVENT HANDLERS (Minimal Change) ---
+// --- 6. SOCKET.IO EVENT HANDLERS (unchanged) ---
 
 io.on('connection', (socket) => {
     const userId = socket.handshake.query.userId;
     let username = socket.handshake.query.username || 'Guest'; 
     
-    // Auth Check: Now checks if the userId exists in the loaded users array
     const user = users.find(u => u.id === userId);
 
     if (!user) {
@@ -284,7 +283,6 @@ io.on('connection', (socket) => {
         return socket.disconnect(true);
     }
     
-    // Ensure the socket uses the verified username from the database
     username = user.username;
     
     console.log(`[SOCKET] User connected: ${username} (ID: ${userId})`);
@@ -311,7 +309,6 @@ io.on('connection', (socket) => {
             id: generateMatchId(), 
             playerId: socket.id, 
             currentStreak: 0,
-            // Use the user's high score from the database for consistency
             highScore: user.highScore || 0, 
             matchQuestions: shuffledQuestions, 
             currentQuestionIndex: -1,
@@ -343,10 +340,9 @@ io.on('connection', (socket) => {
             const finalStreak = game.currentStreak;
             
             if (finalStreak > game.highScore) {
-                // Update the user's high score in the in-memory array
                 user.highScore = finalStreak; 
                 game.highScore = finalStreak;
-                // Asynchronously save the updated user data to the file
+                // CRITICAL: Ensure we save the updated high score
                 saveUsers(); 
             }
             
