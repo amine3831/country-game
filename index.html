@@ -1,307 +1,170 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Flag Quiz Online</title>
+    <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <style>
-        /* Apply box-sizing globally to ensure margins/padding don't increase the total height */
-        * {
-            box-sizing: border-box;
-        }
-
-        /* === 1. FULL-SCREEN DESIGN & NO SCROLL === */
+    <title>Flag Quiz Game</title>
+    <script src="/socket.io/socket.io.js"></script>
+    <link rel="stylesheet" href="style.css"> <style>
         :root {
-            --primary-color: #3f51b5; /* Indigo */
-            --secondary-color: #ff9800; /* Orange - Selected Answer */
-            --success-color: #4caf50; /* Green - Correct Answer */
-            --error-color: #f44336; /* Red - Incorrect Answer */
+            --primary-color: #007bff;
+            --success-color: #28a745;
+            --error-color: #dc3545;
             --text-color: #333;
-            --bg-gradient: linear-gradient(to bottom, #d2e3f4, #f8f9fa); 
         }
-
-        body { 
-            font-family: 'Arial', sans-serif; 
-            text-align: center; 
-            background: var(--bg-gradient); 
+        body {
+            font-family: Arial, sans-serif;
             margin: 0;
             padding: 0;
+            background-color: #f4f4f4;
             display: flex;
-            flex-direction: column; /* Allows header at the top */
-            justify-content: flex-start;
-            align-items: center; 
-            height: 100vh;
-            width: 100vw;
-            color: var(--text-color);
-            font-size: 16px; 
-            overflow: hidden; /* Ensures no scrollbar is ever visible */
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
         }
-        
-        /* NEW: Style for the header */
-        header {
-            padding: 10px; 
-            border-bottom: 1px solid #ccc; 
-            width: 100%; 
-            background: white;
+        .container {
+            width: 90%;
+            max-width: 800px;
+            padding: 20px;
+            background-color: white;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            border-radius: 8px;
+            margin-top: 50px;
+        }
+        h1 {
+            text-align: center;
+            color: var(--primary-color);
+            margin-bottom: 20px;
+        }
+        #auth-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
+            margin-bottom: 20px;
+            padding: 10px 0;
+            border-bottom: 1px solid #ccc;
         }
-
-        #game-container { 
-            width: 100%; 
-            height: calc(100vh - 40px); /* Adjusted height to account for the header */
-            margin: 0 auto; 
-            padding: 0; 
-            display: flex; 
+        #welcome-message {
+            display: none; /* Initially hidden, shown by client_auth_menu.js */
+            font-size: 1.1em;
+            font-weight: bold;
+        }
+        #logout-container {
+            display: none; /* Initially hidden, shown by client_auth_menu.js */
+        }
+        #logout-button {
+            padding: 8px 15px;
+            background-color: var(--error-color);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        #status {
+            text-align: center;
+            padding: 15px;
+            font-size: 1.2em;
+            font-weight: bold;
+            display: none; /* Used for waiting status, shown by JS */
+            margin-bottom: 20px;
+        }
+        #mode-selection {
+            display: none; /* CRITICAL: Hidden until auth_successful, shown by JS */
             flex-direction: column;
-            background-color: transparent; 
+            gap: 15px;
+            padding-top: 20px;
         }
-
-        /* FIX: Centers content when only the status/menu message is visible */
-        #game-container.centered-status {
-            justify-content: center;
-            align-items: center; 
-        }
-
-        /* === NEW: MENU STYLES === */
-        .menu-button {
+        .mode-button {
             width: 100%;
             padding: 15px;
-            margin-bottom: 15px;
-            background-color: var(--primary-color);
+            font-size: 1.2em;
+            font-weight: bold;
             color: white;
             border: none;
-            border-radius: 8px;
-            font-size: 5vw; 
+            border-radius: 6px;
             cursor: pointer;
-            box-shadow: 0 4px #303f9f;
-            transition: background-color 0.3s;
+            transition: background-color 0.2s;
         }
-        .menu-button:hover {
-            background-color: #303f9f;
-        }
-        
-        /* === 2. PRECISE 100vh FLOW LAYOUT (Adjusted percentages for remaining space) === */
-        
-        h1 {
-            color: var(--primary-color);
-            font-size: 6vw; 
-            height: 8vh; 
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            margin: 0; 
-            margin-bottom: 1vh; 
-            padding: 0 3vw; 
-            background-color: transparent; 
+        #start-simple-game { background-color: #28a745; }
+        #start-multiplayer-button { background-color: #ffc107; } /* Yellow for quick match */
+        #start-vs-friend-button { background-color: #6c757d; } /* Gray for custom */
+        #start-tournament-button { background-color: #007bff; } /* Blue for complex mode */
+
+        .mode-button:hover { filter: brightness(1.1); }
+        .mode-description {
+            font-size: 0.9em;
+            color: #666;
+            margin-top: 5px;
+            text-align: center;
         }
 
-        #status {
-            height: 7vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            font-weight: bold;
-            font-size: 5vw; 
-            width: 100%;
-            margin: 0;
-            margin-bottom: 1vh; 
-            padding: 0 3vw;
-            background-color: transparent; 
-        }
-
-        #round-display {
-            height: 7vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            font-size: 5vw; 
-            margin: 0;
-            margin-bottom: 1vh; 
-            padding: 0 3vw;
-            background-color: transparent; 
-        }
-
-        .flag-image { 
-            max-height: 20vh; 
-            width: 90%; 
-            margin: 0 auto; 
-            object-fit: contain; 
-            border-radius: 8px; 
-            background-color: transparent;
-            margin-bottom: 1vh; 
-        }
-        
-        #options-container {
-            display: flex;
-            flex-wrap: wrap;
-            justify-content: center;
-            width: 90%; 
-            height: auto; 
-            margin: 0 auto; 
-            padding: 0 3vw; 
-        }
-        
-        .option-button { 
-            height: 6vh; 
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            padding: 0 1vw; 
-            margin: 0.5vh 0.5vh 1vh 0.5vh; 
-            cursor: pointer; 
-            background-color: var(--primary-color);
-            color: white;
-            border: none;
-            border-radius: 8px;
-            font-size: 4.5vw; 
-            transition: background-color 0.3s, transform 0.1s;
-            width: calc(50% - 1vh); /* Forces 2 per row */
-            box-shadow: 0 3px #303f9f; 
-            white-space: nowrap; 
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-        
-        .option-button:hover:not(:disabled) {
-            background-color: #303f9f;
-            transform: translateY(-2px);
-            box-shadow: 0 5px #303f9f;
-        }
-        .option-button:disabled {
-            background-color: #ccc; 
-            cursor: default;
-            box-shadow: none;
-        }
-        .option-button.correct {
-            background-color: var(--success-color) !important;
-            box-shadow: 0 3px #388e3c !important; 
-        }
-        .option-button.incorrect {
-            background-color: var(--error-color) !important;
-            opacity: 0.5; 
-            box-shadow: none !important;
-        }
-        .option-button.selected {
-            background-color: var(--secondary-color) !important; 
-            box-shadow: 0 0 8px 3px var(--secondary-color) !important;
-            transform: scale(1.05);
-        }
-
-        #result-message {
-            height: 10vh; 
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            font-weight: bold;
-            font-size: 5vw; 
-            width: 100%;
-            margin: 0;
-            margin-bottom: 1vh; 
-            padding: 0 3vw;
-            background-color: transparent; 
-        }
-
-        #time-display {
-            height: 7vh;
-            display: flex;
-            justify-content: space-around;
-            align-items: center;
-            font-style: italic;
-            font-size: 4vw; 
-            width: 100%;
-            font-weight: bold;
-            margin: 0;
-            margin-bottom: 1vh; 
-            padding: 0 3vw;
-            background-color: transparent; 
-        }
-
-        .score-board { 
-            height: 8vh; 
-            background-color: transparent; 
-            display: flex; 
-            width: 90%;
-            max-width: 450px; 
-            margin: 0 auto; 
-            padding: 1vh 0; 
-            border: 2px solid #333; 
-            border-radius: 8px;
-            overflow: hidden; 
-        }
-
-        .score-board span {
-            flex-grow: 1;
-            padding: 0; 
-            font-weight: bold;
-            font-size: 4.5vw; 
+        /* Styles for the active quiz area (used by main_game_logic.js) */
+        #game-area {
             display: flex;
             flex-direction: column;
-            justify-content: center;
             align-items: center;
         }
-        
-        .score-board .label {
-            font-size: 3vw;
-            font-weight: normal;
-        }
-
-        #player-score-container { 
-            color: white;
-            background-color: var(--primary-color); 
-            border-right: 2px solid #333; 
-        }
-        
-        #opponent-score-container { 
-            color: var(--text-color);
-            background-color: white; 
-        }
+        /* You must ensure all quiz elements (flag, options, scores) are in here */
+        /* and are correctly styled/hidden initially. */
     </style>
 </head>
-
 <body>
+    <div class="container">
+        <header id="auth-header">
+            <div id="welcome-message">Welcome, <span id="username-display"></span>!</div>
+            <div id="logout-container">
+                <button id="logout-button">Logout</button>
+            </div>
+        </header>
+        
+        <h1>Select a Game Mode</h1>
 
-<header>
-    <span id="welcome-message">Welcome, Guest!</span> 
-    <a href="/logout" style="color: var(--error-color); text-decoration: none; font-weight: bold;">Logout</a>
-</header>
-<div id="game-container">
-    
-    <h1>🌍 Flag Quiz: Fast Lane</h1>
+        <div id="status">Connecting...</div>
 
-    <div id="status">Connecting to server...</div>
+        <div id="mode-selection">
+            
+            <button id="start-simple-game" class="mode-button">
+                Quick Solo Game
+            </button>
+            <div class="mode-description">Test your knowledge against the clock and aim for a high streak. (Single-player)</div>
 
-    <div id="round-display"></div>
+            <hr>
+            
+            <button id="start-multiplayer-button" class="mode-button">
+                Start Quick Match
+            </button>
+            <div class="mode-description">Find a random opponent instantly for a 10-round flag battle. (2-Player Matchmaking)</div>
+            
+            <hr>
 
-    <img id="current-flag" class="flag-image" src="data:image/gif;base64,R0GODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" alt="Flag to guess">
+            <button id="start-vs-friend-button" class="mode-button" disabled>
+                Game vs. Friend (Coming Soon)
+            </button>
+            <div class="mode-description">Create a private room and invite a specific friend using a unique code.</div>
 
-    <div id="options-container">
+            <hr>
+            
+            <button id="start-tournament-button" class="mode-button" disabled>
+                Start Tournament (Coming Soon)
+            </button>
+            <div class="mode-description">Compete in a knockout style tournament against multiple players.</div>
         </div>
 
-    <p id="result-message"></p>
+        <div id="game-area">
+            <h2 id="round-display" style="display:none;"></h2>
+            <img id="current-flag" style="display:none; width: 200px; height: auto;" src="" alt="Flag">
+            <div id="options-container" style="display:none; flex-direction: column;"></div>
+            <p id="result-message" style="display:none;"></p>
 
-    <div id="time-display">
-        <span id="player-time">YOU: --</span>
-        <span id="opponent-time">OPPONENT: --</span>
+            <div id="scoreboard-container" style="display:none;">
+                <div id="player-score-container" class="score-box"><span class="label">YOU</span>: <span id="player-score">0</span></div>
+                <div id="opponent-score-container" class="score-box"><span class="label">OPPONENT</span>: <span id="opponent-score">0</span></div>
+                </div>
+        </div>
+
     </div>
 
-    <div class="score-board" id="scoreboard-container">
-        <span id="player-score-container">
-            <span id="player-score">0</span>
-            <span class="label">YOU</span>
-        </span>
-        <span id="opponent-score-container">
-            <span id="opponent-score">0</span>
-            <span class="label">OPPONENT</span>
-        </span>
-    </div>
-
-</div>
-
-<script src="/socket.io/socket.io.js"></script>
-
-<script src="client_auth_menu.js"></script>
-
-<script src="main_game_logic.js"></script>
+    <script src="client_auth_menu.js"></script>
+    <script src="main_game_logic.js"></script>
 </body>
 </html>
