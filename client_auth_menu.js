@@ -22,15 +22,22 @@ document.addEventListener('DOMContentLoaded', () => {
         // Display username immediately
         document.getElementById('username-display').textContent = username;
         document.getElementById('welcome-message').style.display = 'flex';
-        // The mode-selection display state relies on your CSS/HTML initial state here
 
         // Listen for server confirmation
         socket.on('auth_successful', (data) => {
             console.log(`Socket authenticated as ${data.username}`);
             
-            // This is the CRITICAL block that was causing the regression
+            // ⬅️ CRITICAL FIX: Initialize the game logic ONLY after the socket is ready.
+            if (typeof window.initializeGameLogic === 'function') {
+                window.initializeGameLogic(socket);
+                console.log("Game logic initialized successfully (listeners attached).");
+            } else {
+                console.error("Initialization failed: main_game_logic.js did not define initializeGameLogic.");
+            }
+            
+            // UI transitions
             document.getElementById('status').style.display = 'none';
-            document.getElementById('mode-selection').style.display = 'flex'; // This line might have been missing or styled incorrectly
+            document.getElementById('mode-selection').style.display = 'flex'; 
             document.getElementById('logout-container').style.display = 'block'; 
         });
 
@@ -62,7 +69,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
         
-        // Multiplayer Handler (This contains the working 'start_multiplayer' fix)
+        // Multiplayer Handler 
         if (multiplayerButton) {
             multiplayerButton.addEventListener('click', () => {
                 document.getElementById('mode-selection').style.display = 'none';
@@ -73,7 +80,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 statusEl.style.color = '#333';
                 statusEl.style.display = 'flex';
                 
-                // 1. Emit the correct event name to the server to start matchmaking
+                // Emit the correct event name to the server to start matchmaking
                 socket.emit('start_multiplayer'); 
             });
         }
