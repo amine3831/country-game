@@ -1,4 +1,4 @@
-// server.js (FINAL CONSOLIDATED VERSION)
+// server.js (FINAL CONSOLIDATED VERSION - Solo & Multiplayer Working)
 
 // --- 1. CORE IMPORTS & SERVER SETUP ---
 const path = require('path');
@@ -19,7 +19,7 @@ let users = [];
 let waitingPlayer = null; 
 const activeMatches = {};  
 const MAX_ROUNDS = 10;
-const ROUND_TIME_LIMIT_MS = 10000;
+const ROUND_TIME_LIMIT_MS = 10000; // Multiplayer round time
 
 // Data loaded from JSON files
 let flagData = []; 
@@ -33,6 +33,7 @@ try {
         image: item.image, 
     }));
     
+    // Assuming 'groups' file exists and exports the map
     CONFUSION_GROUPS_MAP = require('./groups');
     if (typeof CONFUSION_GROUPS_MAP === 'object' && CONFUSION_GROUPS_MAP !== null && !Array.isArray(CONFUSION_GROUPS_MAP)) {
         CONFUSION_GROUPS_MAP = CONFUSION_GROUPS_MAP.CONFUSION_GROUPS_MAP || CONFUSION_GROUPS_MAP.groups || CONFUSION_GROUPS_MAP;
@@ -69,7 +70,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.json()); 
 
 
-// --- 4. UTILITY FUNCTIONS ---
+// --- 4. UTILITY FUNCTIONS (Shared by both modes) ---
 
 function shuffleArray(array) {
     for (let i = array.length - 1; i > 0; i--) {
@@ -126,6 +127,42 @@ function generateQuizOptions(correctCountry) {
     
     return shuffleArray(finalOptions);
 }
+
+// ⬅️ SOLO GAME UTILITY FUNCTION
+function startSoloRound(socket) {
+    if (!flagData || flagData.length === 0) {
+        return socket.emit('server_error', { message: "Game data unavailable." });
+    }
+    
+    const randomFlag = flagData[Math.floor(Math.random() * flagData.length)];
+    const options = generateQuizOptions(randomFlag.country);
+    
+    const user = users.find(u => u.id === socket.userId);
+    const highScore = user ? user.highScore : 0; 
+
+    // Store the correct answer on the socket instance for round validation
+    socket.soloRoundData = {
+        correctAnswer: randomFlag.country
+    };
+
+    console.log(`[SOLO] Starting new round for ${socket.username}. Flag: ${randomFlag.country}`);
+
+    socket.emit('solo_new_round', {
+        image: randomFlag.image,
+        options: options,
+        highScore: highScore,
+    });
+}
+
+function updateSoloHighScore(userId, newScore) {
+    const user = users.find(u => u.id === userId);
+    if (user && newScore > user.highScore) {
+        user.highScore = newScore;
+        return true;
+    }
+    return false;
+}
+// ... (Your Multiplayer functions startMultiplayerRound, startNextMultiplayerRound, endMatch remain here) ...
 
 function startMultiplayerRound(matchId) {
     const match = activeMatches[matchId];
@@ -196,6 +233,8 @@ function endMatch(matchId) {
 
 
 // --- 5. EXPRESS ROUTES ---
+// ... (Your Express routes remain here) ...
+
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
@@ -281,14 +320,71 @@ io.on('connection', (socket) => {
     }
     
     username = user.username;
+    
+    // ⬅️ CRITICAL FIX: Attach properties to the socket instance for use in handlers
+    socket.userId = userId; 
+    socket.username = username;
+    
     console.log(`[SOCKET] User connected: ${username} (ID: ${userId})`);
     socket.emit('auth_successful', { username: username });
 
-    // --- SIMPLE GAME HANDLERS (Omitted for brevity, but exist in your file) ---
-    // (Assuming simple game handlers are present here)
-
     
+    // ------------------------------------------------------------------
+    // ✅ SOLO GAME HANDLERS
+    // ------------------------------------------------------------------
+
+    // 1. Client requests to start the solo game
+    socket.on('start_solo_game', () => {
+        // Initialize user's current solo score state on the socket
+        socket.currentSoloStreak = 0;
+        startSoloRound(socket);
+    });
+    
+    // 2. Client requests a new round (after a correct answer)
+    socket.on('request_solo_round', () => {
+        startSoloRound(socket);
+    });
+
+    // 3. Client submits an answer
+    socket.on('submit_solo_answer', (data) => {
+        const answer = data.answer;
+        const soloData = socket.soloRoundData;
+
+        if (!soloData) return; // Ignore if no round is active
+
+        const isCorrect = answer === soloData.correctAnswer;
+        
+        if (isCorrect) {
+            socket.currentSoloStreak++;
+            
+            // Check and update High Score
+            updateSoloHighScore(socket.userId, socket.currentSoloStreak);
+            
+        } else {
+            // Game Over for solo mode
+            const finalScore = socket.currentSoloStreak;
+            socket.currentSoloStreak = 0; // Reset streak
+            
+            const user = users.find(u => u.id === socket.userId);
+            const highScore = user ? user.highScore : 0; // Get updated high score
+
+            socket.emit('solo_game_over', { 
+                score: finalScore, 
+                highScore: highScore 
+            });
+        }
+        
+        // Send feedback back to the client
+        socket.emit('solo_feedback', { 
+            isCorrect: isCorrect, 
+            correctAnswer: soloData.correctAnswer 
+        });
+    });
+
+
+    // ------------------------------------------------------------------
     // --- MULTIPLAYER HANDLERS (STABILITY FIX INCLUDED) ---
+    // ------------------------------------------------------------------
     socket.on('start_multiplayer', () => {
         if (!flagData || flagData.length === 0) {
             return socket.emit('server_error', { message: "Game data unavailable." });
@@ -377,7 +473,6 @@ io.on('connection', (socket) => {
 
     // --- DISCONNECT HANDLER ---
     socket.on('disconnect', () => { 
-        // ... (Simple game cleanup omitted) ...
         
         if (waitingPlayer && waitingPlayer.socketId === socket.id) {
             console.log(`[MULTIPLAYER] Cleared waiting player: ${username}`);
