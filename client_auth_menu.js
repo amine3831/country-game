@@ -28,23 +28,28 @@ document.addEventListener('DOMContentLoaded', () => {
         socket.on('auth_successful', (data) => {
             console.log(`Socket authenticated as ${data.username}`);
             
-            // 1. Initialize Multiplayer Logic (Only runs if main_game_logic.js is loaded on index.html)
+            // 1. Initialize Multiplayer Logic (Only runs if main_game_logic.js is loaded)
             if (typeof window.initializeGameLogic === 'function') {
                 window.initializeGameLogic(socket);
                 console.log("Multiplayer logic initialized.");
             }
             
-            // 2. Initialize Solo Game Logic (Only runs if simple_game_logic.js is loaded on simple_game.html)
-            // ⬅️ THIS IS THE CRITICAL MISSING SECTION 
+            // 2. Initialize Solo Game Logic (CRITICAL FIX: THIS LINE MUST BE PRESENT)
             if (typeof window.initializeSoloGameLogic === 'function') {
                 window.initializeSoloGameLogic(socket);
                 console.log("Solo game logic initialized.");
             }
 
             // UI transitions
-            document.getElementById('status').style.display = 'none';
-            document.getElementById('mode-selection').style.display = 'flex'; 
-            document.getElementById('logout-container').style.display = 'block'; 
+            // Note: These IDs are only present on index.html, not simple_game.html, but the logic is harmless.
+            const statusEl = document.getElementById('status');
+            if (statusEl) statusEl.style.display = 'none';
+            
+            const modeSelectionEl = document.getElementById('mode-selection');
+            if (modeSelectionEl) modeSelectionEl.style.display = 'flex'; 
+            
+            const logoutContainerEl = document.getElementById('logout-container');
+            if (logoutContainerEl) logoutContainerEl.style.display = 'block'; 
         });
 
         // Handle unauthorized or invalid user ID
@@ -55,12 +60,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Handle general server errors
         socket.on('server_error', (data) => {
-             document.getElementById('status').textContent = `Server Error: ${data.message}`;
-             document.getElementById('status').style.color = 'red';
-             document.getElementById('status').style.display = 'block';
+             const statusEl = document.getElementById('status');
+             if (statusEl) {
+                 statusEl.textContent = `Server Error: ${data.message}`;
+                 statusEl.style.color = 'red';
+                 statusEl.style.display = 'block';
+             }
         });
 
-        // --- 2. GAME MODE BUTTON HANDLERS ---
+        // --- 2. GAME MODE BUTTON HANDLERS (for index.html) ---
         
         const simpleGameButton = document.getElementById('start-simple-game');
         const multiplayerButton = document.getElementById('start-multiplayer-button');
@@ -68,7 +76,8 @@ document.addEventListener('DOMContentLoaded', () => {
         // Simple Game Handler
         if (simpleGameButton) {
             simpleGameButton.addEventListener('click', () => {
-                document.getElementById('mode-selection').style.display = 'none';
+                const modeSelectionEl = document.getElementById('mode-selection');
+                if (modeSelectionEl) modeSelectionEl.style.display = 'none';
                 
                 // Navigate to the simple game page, preserving user query parameters
                 window.location.href = '/simple_game' + window.location.search;
@@ -78,13 +87,16 @@ document.addEventListener('DOMContentLoaded', () => {
         // Multiplayer Handler 
         if (multiplayerButton) {
             multiplayerButton.addEventListener('click', () => {
-                document.getElementById('mode-selection').style.display = 'none';
+                const modeSelectionEl = document.getElementById('mode-selection');
+                if (modeSelectionEl) modeSelectionEl.style.display = 'none';
                 
                 // Show waiting status
                 const statusEl = document.getElementById('status');
-                statusEl.textContent = '⏱️ Searching for opponent...';
-                statusEl.style.color = '#333';
-                statusEl.style.display = 'flex';
+                if (statusEl) {
+                    statusEl.textContent = '⏱️ Searching for opponent...';
+                    statusEl.style.color = '#333';
+                    statusEl.style.display = 'flex';
+                }
                 
                 // Emit the correct event name to the server to start matchmaking
                 socket.emit('start_multiplayer'); 
