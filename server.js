@@ -1,4 +1,4 @@
-// server.js (COMPLETE CODE)
+// server.js (FULL FIXED VERSION)
 
 // --- 1. CORE IMPORTS & SERVER SETUP ---
 const path = require('path');
@@ -12,7 +12,6 @@ const io = socketio(server);
 
 
 // --- 2. IN-MEMORY TESTING DATABASE & GAME DATA ---
-// Users will be added here dynamically via the /signup route. (Lost on server restart)
 let users = []; 
 console.log(`✅ In-Memory Test Database initialized with ${users.length} users (empty).`);
 
@@ -28,7 +27,6 @@ try {
     }));
     
     CONFUSION_GROUPS_MAP = require('./groups');
-    // Ensure the confusion map is extracted correctly if wrapped in an object
     if (typeof CONFUSION_GROUPS_MAP === 'object' && CONFUSION_GROUPS_MAP !== null && !Array.isArray(CONFUSION_GROUPS_MAP)) {
         CONFUSION_GROUPS_MAP = CONFUSION_GROUPS_MAP.CONFUSION_GROUPS_MAP || CONFUSION_GROUPS_MAP.groups || CONFUSION_GROUPS_MAP;
     }
@@ -50,6 +48,7 @@ const ROUND_TIME_LIMIT_MS = 10000;
 app.use(express.static(path.join(__dirname)));
 app.use(express.urlencoded({ extended: true })); 
 app.use(express.json()); 
+
 
 // --- 4. UTILITY FUNCTIONS ---
 
@@ -143,12 +142,10 @@ function startSimpleGameRound(playerId) {
     });
 }
 
-/** Starts the current round for a multiplayer match and sets a timer. */
 function startMultiplayerRound(matchId) {
     const match = activeMatches[matchId];
     if (!match) return;
 
-    // Check for end of match
     if (match.questionIndex >= MAX_ROUNDS - 1) {
         endMatch(matchId);
         return;
@@ -157,7 +154,6 @@ function startMultiplayerRound(matchId) {
     match.questionIndex++;
     match.currentFlag = match.questions[match.questionIndex];
 
-    // Reset answered status and calculate options
     Object.values(match.players).forEach(p => {
         p.answeredThisRound = false;
     });
@@ -166,7 +162,6 @@ function startMultiplayerRound(matchId) {
 
     console.log(`[MATCH ${matchId}] Starting Round ${match.questionIndex + 1}. Flag: ${match.currentFlag.country}`);
 
-    // Broadcast the new round data to the match room
     io.to(matchId).emit('multiplayer_new_round', {
         roundNumber: match.questionIndex + 1,
         maxRounds: MAX_ROUNDS,
@@ -178,32 +173,26 @@ function startMultiplayerRound(matchId) {
         }, {})
     });
 
-    // Set a timer for the round
     match.roundTimer = setTimeout(() => {
         startNextMultiplayerRound(matchId);
     }, ROUND_TIME_LIMIT_MS);
 }
 
-/** Handles round progression, checking if the match is over. */
 function startNextMultiplayerRound(matchId) {
     const match = activeMatches[matchId];
     if (!match) return;
     
-    // Check if the match is truly over
     if (match.questionIndex >= MAX_ROUNDS - 1) {
         endMatch(matchId);
     } else {
-        // Proceed to the next round
         startMultiplayerRound(matchId);
     }
 }
 
-/** Finalizes the match, determines the winner, and cleans up state. */
 function endMatch(matchId) {
     const match = activeMatches[matchId];
     if (!match) return;
 
-    // Determine Winner
     const playerScores = Object.values(match.players).map(p => ({ username: p.username, score: p.score }));
     playerScores.sort((a, b) => b.score - a.score);
 
@@ -212,19 +201,16 @@ function endMatch(matchId) {
     
     console.log(`[MATCH ${matchId}] Match Ended. Winner: ${winner}. Scores: ${playerScores[0].username} (${playerScores[0].score}) vs ${playerScores[1].username} (${playerScores[1].score})`);
 
-    // Notify all players in the room
     io.to(matchId).emit('match_game_over', {
         scores: playerScores,
         winner: winner,
     });
     
-    // Clean up
     delete activeMatches[matchId];
 }
 
 
 // --- 5. EXPRESS ROUTES ---
-
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
@@ -241,8 +227,6 @@ app.get('/simple_game', (req, res) => {
     res.sendFile(path.join(__dirname, 'simple_game.html'));
 });
 
-
-// SIGN-UP LOGIC
 app.post('/signup', (req, res) => {
     const { name, username, email, password } = req.body;
     
@@ -266,10 +250,8 @@ app.post('/signup', (req, res) => {
         };
         
         users.push(newUser);
-        
         console.log(`✅ New user signed up: ${username}. Total users: ${users.length}`);
         
-        // Redirect back to login with a success status
         res.redirect('/login?status=success&username=' + username);
         
     } catch (error) {
@@ -278,32 +260,21 @@ app.post('/signup', (req, res) => {
     }
 });
 
-
-// LOGIN ROUTE
 app.post('/login', async (req, res) => {
     const { username, password } = req.body;
     
     const user = users.find(u => u.username === username);
-    
-    if (!user) {
-        console.log(`[LOGIN FAILED] User not found: ${username}`);
-        return res.status(401).send("Login failed: Invalid username or password.");
-    }
+    if (!user) return res.status(401).send("Login failed: Invalid username or password.");
 
-    // Trim both passwords to eliminate possible invisible spaces (stability fix)
     if (password.trim() === user.password.trim()) { 
         const userId = user.id;
-        
         console.log(`✅ User logged in: ${username}`);
-        
         res.redirect(`/?userId=${userId}&username=${username}`); 
-            
     } else {
         console.log(`[LOGIN FAILED] Password mismatch for ${username}.`);
         res.status(401).send("Login failed: Invalid username or password.");
     }
 });
-
 
 app.get('/logout', (req, res) => {
     res.redirect('/login');
@@ -311,38 +282,25 @@ app.get('/logout', (req, res) => {
 
 
 // --- 6. SOCKET.IO EVENT HANDLERS ---
-
 io.on('connection', (socket) => {
     const userId = socket.handshake.query.userId;
     let username = socket.handshake.query.username || 'Guest'; 
     
     const user = users.find(u => u.id === userId);
-
     if (!user) {
-        console.error("Authentication Failed: Invalid or missing userId. Disconnecting socket.");
         socket.emit('unauthorized_access');
         return socket.disconnect(true);
     }
     
     username = user.username;
-    
     console.log(`[SOCKET] User connected: ${username} (ID: ${userId})`);
-    
     socket.emit('auth_successful', { username: username });
 
-    
     // --- SIMPLE GAME HANDLERS ---
-
     socket.on('start_simple_session', () => {
-        
-        if (!flagData || flagData.length === 0) {
-            socket.emit('server_error', { message: "Game data is unavailable on the server." });
-            return; 
-        }
+        if (!flagData || flagData.length === 0) return socket.emit('server_error', { message: "Game data is unavailable." });
 
-        if (simpleGames[socket.id]) {
-            delete simpleGames[socket.id]; 
-        }
+        if (simpleGames[socket.id]) delete simpleGames[socket.id]; 
 
         const shuffledQuestions = shuffleArray([...flagData]); 
         
@@ -355,10 +313,8 @@ io.on('connection', (socket) => {
             currentQuestionIndex: -1,
         };
         
-        console.log(`[SIMPLE] Session started for ${socket.id}. Attempting first round...`);
         startSimpleGameRound(socket.id); 
     });
-
 
     socket.on('submit_simple_answer', (data) => {
         const game = simpleGames[socket.id];
@@ -379,7 +335,6 @@ io.on('connection', (socket) => {
             
         } else {
             const finalStreak = game.currentStreak;
-            
             if (finalStreak > user.highScore) { 
                 user.highScore = finalStreak; 
                 game.highScore = finalStreak;
@@ -394,80 +349,59 @@ io.on('connection', (socket) => {
     });
 
     
-    // --- MULTIPLAYER HANDLERS (STABILIZED) ---
-
+    // --- MULTIPLAYER HANDLERS (FIXED) ---
     socket.on('start_multiplayer', () => {
         if (!flagData || flagData.length === 0) {
-            return socket.emit('server_error', { message: "Game data is unavailable on the server." });
+            return socket.emit('server_error', { message: "Game data unavailable." });
         }
-        
-        console.log(`[MULTIPLAYER] ${username} (ID: ${socket.id}) is attempting to start a match.`);
 
-        if (waitingPlayer && waitingPlayer.id !== socket.id) {
-            // Player 2 found: Start the Match
-            
-            // Define Player 1 (the one waiting)
-            const player1Id = waitingPlayer.id;
-            const player1Username = waitingPlayer.username;
-            const player1Socket = io.sockets.sockets.get(player1Id);
-            
-            // Define Player 2 (the one joining now)
-            const player2Id = socket.id;
-            const player2Username = username;
-            const player2Socket = socket;
-            
+        console.log(`[MULTIPLAYER] ${username} (${userId}) wants to start.`);
+
+        if (waitingPlayer && waitingPlayer.userId !== userId) {
+            const player1 = waitingPlayer;
+            const player1Socket = io.sockets.sockets.get(player1.socketId);
+
             if (!player1Socket) {
-                // Critical safety check: If the waiting player disconnected right before this, reset.
-                console.error(`ERROR: Waiting player socket (${player1Id}) not found. Resetting waiting list.`);
-                waitingPlayer = { id: player2Id, username: player2Username };
+                console.error("Waiting player disconnected. Resetting queue.");
+                waitingPlayer = { userId, socketId: socket.id, username };
                 return socket.emit('searching');
             }
 
             const matchId = generateMatchId();
-            const matchQuestions = shuffleArray([...flagData]).slice(0, MAX_ROUNDS); 
+            const matchQuestions = shuffleArray([...flagData]).slice(0, MAX_ROUNDS);
 
-            const match = {
+            activeMatches[matchId] = {
                 id: matchId,
                 players: {
-                    [player1Id]: { username: player1Username, score: 0, socket: player1Socket },
-                    [player2Id]: { username: player2Username, score: 0, socket: player2Socket },
+                    [player1.userId]: { username: player1.username, score: 0, socket: player1Socket },
+                    [userId]: { username, score: 0, socket }
                 },
                 questionIndex: -1,
                 questions: matchQuestions,
                 currentFlag: null,
-                roundTimer: null,
+                roundTimer: null
             };
-            
-            activeMatches[matchId] = match;
 
-            // Clear the waiting list
             waitingPlayer = null;
 
-            // Group the two sockets into a single room for easy communication
             player1Socket.join(matchId);
-            player2Socket.join(matchId);
+            socket.join(matchId);
 
-            console.log(`✅ MATCH STARTED: ${player1Username} vs ${player2Username} (ID: ${matchId})`);
-            
-            // Notify both players the match has started
+            console.log(`✅ MATCH STARTED: ${player1.username} vs ${username} (ID: ${matchId})`);
+
             io.to(matchId).emit('match_started', {
-                matchId: matchId,
-                opponent: player2Username, // The name of the opponent for Player 1
+                matchId,
                 playerMap: {
-                    [player1Id]: player1Username,
-                    [player2Id]: player2Username
+                    [player1.userId]: player1.username,
+                    [userId]: username
                 }
             });
 
-            // Start the first round after a brief delay
-            setTimeout(() => {
-                startMultiplayerRound(matchId);
-            }, 1000);
+            setTimeout(() => startMultiplayerRound(matchId), 1000);
 
         } else {
-            // Player 1: Register as waiting
-            waitingPlayer = { id: socket.id, username: username };
-            console.log(`[MULTIPLAYER] ${username} is now waiting for an opponent.`);
+            waitingPlayer = { userId, socketId: socket.id, username };
+            console.log(`[MULTIPLAYER] ${username} waiting for opponent...`);
             socket.emit('searching');
         }
     });
@@ -475,40 +409,31 @@ io.on('connection', (socket) => {
     socket.on('submit_multiplayer_answer', (data) => {
         const { matchId, answer } = data;
         const match = activeMatches[matchId];
-
         if (!match || match.questionIndex === -1) return;
         
         const playerId = socket.id;
-        
-        if (match.players[playerId].answeredThisRound) return;
+        if (match.players[playerId]?.answeredThisRound) return;
 
         const currentQuestion = match.questions[match.questionIndex];
         const isCorrect = answer === currentQuestion.country;
         
         match.players[playerId].answeredThisRound = true;
-
-        if (isCorrect) {
-            match.players[playerId].score += 1;
-        }
-
-        console.log(`[MATCH ${matchId}] ${match.players[playerId].username} answered. Correct: ${isCorrect}. Score: ${match.players[playerId].score}`);
+        if (isCorrect) match.players[playerId].score += 1;
 
         socket.emit('multiplayer_feedback', { isCorrect: isCorrect, correctAnswer: currentQuestion.country });
 
         const allAnswered = Object.values(match.players).every(p => p.answeredThisRound);
-
         if (allAnswered) {
             clearTimeout(match.roundTimer);
             startNextMultiplayerRound(matchId);
         }
     });
 
-
     // --- DISCONNECT HANDLER ---
     socket.on('disconnect', () => { 
         delete simpleGames[socket.id];
         
-        if (waitingPlayer && waitingPlayer.id === socket.id) {
+        if (waitingPlayer && waitingPlayer.socketId === socket.id) {
             console.log(`[MULTIPLAYER] Cleared waiting player: ${username}`);
             waitingPlayer = null;
         }
@@ -538,7 +463,6 @@ io.on('connection', (socket) => {
 
 
 // --- 7. SERVER STARTUP ---
-
 const PORT = process.env.PORT || 3000;
 
 server.listen(PORT, () => {
