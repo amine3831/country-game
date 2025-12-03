@@ -9,8 +9,8 @@ let opponentScore = 0;
 let isP1 = false; 
 
 // --- 2. ELEMENT REFERENCES ---
-// These declarations must remain global so they are accessible by the functions below
-const gameContainerEl = document.getElementById('game-area'); // ⬅️ CRITICAL FIX: References 'game-area'
+// CRITICAL FIX: References the correct ID 'game-area'
+const gameContainerEl = document.getElementById('game-area'); 
 const statusEl = document.getElementById('status');
 const roundDisplayEl = document.getElementById('round-display');
 const flagImageEl = document.getElementById('current-flag');
@@ -23,7 +23,7 @@ const opponentTimeEl = document.getElementById('opponent-time');
 const scoreboardContainerEl = document.getElementById('scoreboard-container');
 
 
-// --- 3. VISUAL/STATE MANAGEMENT (UNCHANGED) ---
+// --- 3. VISUAL/STATE MANAGEMENT ---
 
 function resetUI(showRoundDisplay = true) {
     // Clear all dynamic content
@@ -63,14 +63,12 @@ function resetUI(showRoundDisplay = true) {
 }
 
 
-// ⬅️ CRITICAL FIX: The entire game logic is wrapped in a function 
-// to be called by client_auth_menu.js only after the socket is ready.
+// ⬅️ CRITICAL FIX: Wrapper function for Deferred Initialization
 window.initializeGameLogic = function(socket) { 
     
-    // Get username here, as it's guaranteed to be available after successful auth
     const myUsername = document.getElementById('username-display').textContent; 
 
-    // --- 4. SOCKET LISTENERS (NOW INSIDE THE FUNCTION) ---
+    // --- 4. SOCKET LISTENERS (ATTACHED SAFELY HERE) ---
 
     socket.on('searching', () => { 
         statusEl.textContent = '⏱️ Searching for opponent...';
@@ -90,7 +88,7 @@ window.initializeGameLogic = function(socket) {
         playerScoreEl.textContent = myScore;
         opponentScoreEl.textContent = opponentScore;
         
-        // CRITICAL UI FIX: Hide the status and show the game container
+        // UI Fixes (Hiding status and showing game area)
         if (statusEl) {
             statusEl.style.display = 'none'; 
         }
@@ -212,7 +210,7 @@ window.initializeGameLogic = function(socket) {
 };
 
 
-// --- 5. USER INPUT HANDLER (ADJUSTED TO ACCEPT SOCKET) ---
+// --- 5. USER INPUT HANDLER ---
 
 function handleAnswer(answer, selectedButton, socket) {
     if (isAnswered || !currentMatchId) return;
@@ -227,6 +225,7 @@ function handleAnswer(answer, selectedButton, socket) {
         }
     });
     
+    // Uses the passed-in socket instance
     socket.emit('submit_multiplayer_answer', {
         matchId: currentMatchId,
         answer: answer
@@ -237,7 +236,7 @@ function handleAnswer(answer, selectedButton, socket) {
     playerTimeEl.textContent = `YOU: Submitting...`;
 }
 
-// --- 6. UTILITY (UNCHANGED) ---
+// --- 6. UTILITY ---
 
 function getCssVar(name) {
     return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
