@@ -35,6 +35,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             
             // 2. Initialize Solo Game Logic (Only runs if simple_game_logic.js is loaded on simple_game.html)
+            // ⬅️ THIS IS THE CRITICAL MISSING SECTION 
             if (typeof window.initializeSoloGameLogic === 'function') {
                 window.initializeSoloGameLogic(socket);
                 console.log("Solo game logic initialized.");
