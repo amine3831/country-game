@@ -27,14 +27,18 @@ document.addEventListener('DOMContentLoaded', () => {
         socket.on('auth_successful', (data) => {
             console.log(`Socket authenticated as ${data.username}`);
             
-            // ⬅️ CRITICAL FIX: Initialize the game logic ONLY after the socket is ready.
+            // 1. Initialize Multiplayer Logic (Only runs if main_game_logic.js is loaded)
             if (typeof window.initializeGameLogic === 'function') {
                 window.initializeGameLogic(socket);
-                console.log("Game logic initialized successfully (listeners attached).");
-            } else {
-                console.error("Initialization failed: main_game_logic.js did not define initializeGameLogic.");
+                console.log("Multiplayer logic initialized.");
             }
             
+            // 2. ⬅️ CRITICAL FIX: Initialize Solo Game Logic (Only runs if client_simple_game_logic.js is loaded)
+            if (typeof window.initializeSoloGameLogic === 'function') {
+                window.initializeSoloGameLogic(socket);
+                console.log("Solo game logic initialized.");
+            }
+
             // UI transitions
             document.getElementById('status').style.display = 'none';
             document.getElementById('mode-selection').style.display = 'flex'; 
