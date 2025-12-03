@@ -15,6 +15,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (userId && username) {
         
+        // CRITICAL: Initialize socket connection with user data
         socket = io(fullUrl, {
             query: { userId: userId, username: username }
         });
@@ -27,13 +28,13 @@ document.addEventListener('DOMContentLoaded', () => {
         socket.on('auth_successful', (data) => {
             console.log(`Socket authenticated as ${data.username}`);
             
-            // 1. Initialize Multiplayer Logic (Only runs if main_game_logic.js is loaded)
+            // 1. Initialize Multiplayer Logic (Only runs if main_game_logic.js is loaded on index.html)
             if (typeof window.initializeGameLogic === 'function') {
                 window.initializeGameLogic(socket);
                 console.log("Multiplayer logic initialized.");
             }
             
-            // 2. ⬅️ CRITICAL FIX: Initialize Solo Game Logic (Only runs if client_simple_game_logic.js is loaded)
+            // 2. Initialize Solo Game Logic (Only runs if simple_game_logic.js is loaded on simple_game.html)
             if (typeof window.initializeSoloGameLogic === 'function') {
                 window.initializeSoloGameLogic(socket);
                 console.log("Solo game logic initialized.");
@@ -68,7 +69,7 @@ document.addEventListener('DOMContentLoaded', () => {
             simpleGameButton.addEventListener('click', () => {
                 document.getElementById('mode-selection').style.display = 'none';
                 
-                // Navigate to the simple game page
+                // Navigate to the simple game page, preserving user query parameters
                 window.location.href = '/simple_game' + window.location.search;
             });
         }
