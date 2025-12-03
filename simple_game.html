@@ -89,6 +89,8 @@
             margin: 0;
             margin-bottom: 1vh; 
             padding: 0 3vw;
+            /* Initially visible until solo game logic hides it */
+            display: flex; 
             background-color: transparent; 
         }
 
@@ -276,6 +278,8 @@
 
 <script src="/socket.io/socket.io.js"></script>
 
+<script src="client_auth_menu.js"></script> 
 <script src="simple_game_logic.js"></script>
+
 </body>
 </html>
