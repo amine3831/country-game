@@ -5,7 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Flag Quiz Game</title>
     <script src="/socket.io/socket.io.js"></script>
-    <link rel="stylesheet" href="style.css"> <style>
+    <link rel="stylesheet" href="style.css"> 
+    <style>
         :root {
             --primary-color: #007bff;
             --success-color: #28a745;
@@ -104,8 +105,6 @@
             flex-direction: column;
             align-items: center;
         }
-        /* You must ensure all quiz elements (flag, options, scores) are in here */
-        /* and are correctly styled/hidden initially. */
     </style>
 </head>
 <body>
@@ -157,9 +156,21 @@
             <p id="result-message" style="display:none;"></p>
 
             <div id="scoreboard-container" style="display:none;">
-                <div id="player-score-container" class="score-box"><span class="label">YOU</span>: <span id="player-score">0</span></div>
-                <div id="opponent-score-container" class="score-box"><span class="label">OPPONENT</span>: <span id="opponent-score">0</span></div>
+                <div id="player-score-container" class="score-box">
+                    <span class="label">YOU</span>: <span id="player-score">0</span>
                 </div>
+                <div id="opponent-score-container" class="score-box">
+                    <span class="label">OPPONENT</span>: <span id="opponent-score">0</span>
+                </div>
+                
+                <div id="player-time-container" class="time-box">
+                    <span id="player-time">YOU: --</span>
+                </div>
+                <div id="opponent-time-container" class="time-box">
+                    <span id="opponent-time">OPPONENT: --</span>
+                </div>
+                
+            </div>
         </div>
 
     </div>
