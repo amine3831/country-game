@@ -8,9 +8,9 @@ let myScore = 0;
 let opponentScore = 0;
 let isP1 = false; 
 
-// --- 2. ELEMENT REFERENCES ---
+// --- 2. ELEMENT REFERENCES (CRITICAL FIX APPLIED HERE) ---
 // Ensure these IDs exist in your index.html
-const gameContainerEl = document.getElementById('game-container');
+const gameContainerEl = document.getElementById('game-area'); // ⬅️ FIXED: Changed from 'game-container' to 'game-area'
 const statusEl = document.getElementById('status');
 const roundDisplayEl = document.getElementById('round-display');
 const flagImageEl = document.getElementById('current-flag');
@@ -83,9 +83,14 @@ socket.on('match_started', (data) => {
     playerScoreEl.textContent = myScore;
     opponentScoreEl.textContent = opponentScore;
     
-    // ⚠️ CRITICAL UI FIX: Hide the status and show the game container
-    statusEl.style.display = 'none'; 
-    gameContainerEl.style.display = 'block'; 
+    // CRITICAL UI FIX: Hide the status and show the game container
+    if (statusEl) {
+        statusEl.style.display = 'none'; 
+    }
+    
+    if (gameContainerEl) {
+        gameContainerEl.style.display = 'block'; 
+    }
 });
 
 socket.on('multiplayer_new_round', (data) => { 
