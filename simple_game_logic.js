@@ -3,15 +3,14 @@
 // --- 1. GLOBAL UI REFERENCES & STATE ---
 
 // Element references matching simple_game.html:
-// Note: 'game-container' is not strictly needed but included for completeness.
 const gameContainerEl = document.getElementById('game-container');
 const flagImageEl = document.getElementById('current-flag');
 const optionsContainerEl = document.getElementById('options-container');
-const roundDisplayEl = document.getElementById('round-display'); // Used for round/streak count
+const roundDisplayEl = document.getElementById('round-display');
 const resultMessageEl = document.getElementById('result-message');
 const statusEl = document.getElementById('status');
 const playerScoreEl = document.getElementById('player-score');
-const highscoreEl = document.getElementById('opponent-score'); // Used for high score display
+const highscoreEl = document.getElementById('opponent-score'); 
 
 let soloScore = 0;
 let isAnswered = false;
@@ -103,13 +102,23 @@ window.initializeSoloGameLogic = function(socket) {
     });
 
     socket.on('solo_feedback', (data) => {
-        const selectedButton = optionsContainerEl.querySelector('.option-button.selected');
+        // We cannot rely on 'selected' class existing, so we find the button by text
+        const selectedButton = optionsContainerEl.querySelector('.option-button.selected') || 
+                               optionsContainerEl.querySelector('.option-button:disabled:not(.correct)');
         
         if (data.isCorrect) {
             soloScore++;
             playerScoreEl.textContent = soloScore;
-            selectedButton.classList.remove('selected');
-            selectedButton.classList.add('correct');
+            
+            if (selectedButton) selectedButton.classList.remove('selected');
+            optionsContainerEl.querySelectorAll('.option-button').forEach(btn => btn.disabled = true); // Ensure all are disabled
+            
+            // Highlight the correct answer (which might be the selected one)
+            optionsContainerEl.querySelectorAll('.option-button').forEach(btn => {
+                if (btn.textContent === data.correctAnswer) {
+                    btn.classList.add('correct');
+                }
+            });
             
             resultMessageEl.textContent = '✅ CORRECT! Next flag loading...';
             resultMessageEl.style.color = getCssVar('--success-color');
@@ -122,7 +131,7 @@ window.initializeSoloGameLogic = function(socket) {
         } else {
             // Incorrect answer: Game Over
             
-            selectedButton.classList.add('incorrect');
+            if (selectedButton) selectedButton.classList.add('incorrect');
             
             // Highlight the correct answer
             optionsContainerEl.querySelectorAll('.option-button').forEach(btn => {
@@ -134,8 +143,7 @@ window.initializeSoloGameLogic = function(socket) {
             resultMessageEl.textContent = `❌ INCORRECT! Correct was ${data.correctAnswer}.`;
             resultMessageEl.style.color = getCssVar('--error-color');
             
-            // The server sends the 'solo_game_over' event immediately after this feedback, 
-            // so we just wait for that event to trigger the final UI change.
+            // Server sends 'solo_game_over' next.
         }
     });
     
@@ -162,5 +170,4 @@ window.initializeSoloGameLogic = function(socket) {
              window.location.href = 'index.html' + window.location.search;
         };
     });
-
 };
