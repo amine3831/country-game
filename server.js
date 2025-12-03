@@ -15,6 +15,26 @@ const io = socketio(server);
 let users = []; 
 console.log(`✅ In-Memory Test Database initialized with ${users.length} users (empty).`);
 
+// --- ADDED FUNCTION: PRINT ALL USERS ---
+function logAllUsers() {
+    console.log("--- CURRENT REGISTERED USERS ---");
+    if (users.length === 0) {
+        console.log("No users currently registered in memory.");
+        return;
+    }
+    users.forEach((user, index) => {
+        // Only printing non-sensitive data (ID, username, score)
+        console.log(
+            `[${index + 1}] Username: ${user.username}, ID: ${user.id}, High Score: ${user.highScore}`
+        );
+    });
+    console.log("----------------------------------");
+}
+
+// Log initial state (which is empty)
+logAllUsers(); 
+// --- END ADDED FUNCTION ---
+
 let flagData = []; 
 let CONFUSION_GROUPS_MAP = {}; 
 
@@ -50,7 +70,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.json()); 
 
 
-// --- 4. UTILITY FUNCTIONS ---
+// --- 4. UTILITY FUNCTIONS (UNCHANGED) ---
 
 function shuffleArray(array) {
     for (let i = array.length - 1; i > 0; i--) {
@@ -250,7 +270,12 @@ app.post('/signup', (req, res) => {
         };
         
         users.push(newUser);
-        console.log(`✅ New user signed up: ${username}. Total users: ${users.length}`);
+        
+        // --- ADDED LOG ---
+        console.log(`✅ [SIGNUP] New user signed up: ${username} (ID: ${newUser.id}). Total users: ${users.length}`);
+        
+        // Log all users after successful sign-up
+        logAllUsers(); 
         
         res.redirect('/login?status=success&username=' + username);
         
@@ -268,7 +293,7 @@ app.post('/login', async (req, res) => {
 
     if (password.trim() === user.password.trim()) { 
         const userId = user.id;
-        console.log(`✅ User logged in: ${username}`);
+        console.log(`✅ User logged in: ${username} (ID: ${userId})`);
         res.redirect(`/?userId=${userId}&username=${username}`); 
     } else {
         console.log(`[LOGIN FAILED] Password mismatch for ${username}.`);
@@ -296,7 +321,7 @@ io.on('connection', (socket) => {
     console.log(`[SOCKET] User connected: ${username} (ID: ${userId})`);
     socket.emit('auth_successful', { username: username });
 
-    // --- SIMPLE GAME HANDLERS ---
+    // --- SIMPLE GAME HANDLERS (UNCHANGED) ---
     socket.on('start_simple_session', () => {
         if (!flagData || flagData.length === 0) return socket.emit('server_error', { message: "Game data is unavailable." });
 
@@ -349,32 +374,37 @@ io.on('connection', (socket) => {
     });
 
     
-    // --- MULTIPLAYER HANDLERS (FIXED) ---
+    // --- MULTIPLAYER HANDLERS (STABILITY FIX) ---
     socket.on('start_multiplayer', () => {
         if (!flagData || flagData.length === 0) {
             return socket.emit('server_error', { message: "Game data unavailable." });
         }
 
-        console.log(`[MULTIPLAYER] ${username} (${userId}) wants to start.`);
+        console.log(`[MULTIPLAYER] ${username} (ID: ${userId}) wants to start.`);
 
-        if (waitingPlayer && waitingPlayer.userId !== userId) {
+        // CRITICAL FIX: Check against socket.id for same-browser stability
+        if (waitingPlayer && waitingPlayer.socketId !== socket.id) { 
             const player1 = waitingPlayer;
             const player1Socket = io.sockets.sockets.get(player1.socketId);
 
             if (!player1Socket) {
                 console.error("Waiting player disconnected. Resetting queue.");
+                // Player 2 takes the waiting spot
                 waitingPlayer = { userId, socketId: socket.id, username };
+                // Player 2 starts searching
+                console.log(`🔎 [MULTIPLAYER] ${username} (ID: ${userId}) is now SEARCHING for an opponent.`);
                 return socket.emit('searching');
             }
 
+            // Match Creation (Player 2 joining Player 1)
             const matchId = generateMatchId();
             const matchQuestions = shuffleArray([...flagData]).slice(0, MAX_ROUNDS);
 
             activeMatches[matchId] = {
                 id: matchId,
                 players: {
-                    [player1.userId]: { username: player1.username, score: 0, socket: player1Socket },
-                    [userId]: { username, score: 0, socket }
+                    [player1.socketId]: { username: player1.username, score: 0, socket: player1Socket },
+                    [socket.id]: { username, score: 0, socket } // Use socket.id as player key for game state
                 },
                 questionIndex: -1,
                 questions: matchQuestions,
@@ -392,16 +422,20 @@ io.on('connection', (socket) => {
             io.to(matchId).emit('match_started', {
                 matchId,
                 playerMap: {
-                    [player1.userId]: player1.username,
-                    [userId]: username
+                    [player1.socketId]: player1.username,
+                    [socket.id]: username
                 }
             });
 
             setTimeout(() => startMultiplayerRound(matchId), 1000);
 
         } else {
+            // Player 1: Register as waiting using the socket.id for the check key
             waitingPlayer = { userId, socketId: socket.id, username };
-            console.log(`[MULTIPLAYER] ${username} waiting for opponent...`);
+            
+            // --- ADDED LOG: SEARCHING ---
+            console.log(`🔎 [MULTIPLAYER] ${username} (ID: ${userId}) is now SEARCHING for an opponent.`);
+            
             socket.emit('searching');
         }
     });
@@ -412,7 +446,8 @@ io.on('connection', (socket) => {
         if (!match || match.questionIndex === -1) return;
         
         const playerId = socket.id;
-        if (match.players[playerId]?.answeredThisRound) return;
+        // NOTE: Uses socket.id as key in match.players object
+        if (match.players[playerId]?.answeredThisRound) return; 
 
         const currentQuestion = match.questions[match.questionIndex];
         const isCorrect = answer === currentQuestion.country;
@@ -443,13 +478,14 @@ io.on('connection', (socket) => {
             if (match.players[socket.id]) {
                 console.log(`[MATCH ${matchId}] Player ${username} disconnected. Ending match.`);
                 
-                const opponentId = Object.keys(match.players).find(id => id !== socket.id);
-                if (opponentId) {
-                    const opponentSocket = match.players[opponentId].socket;
+                // Get the opponent's socket ID (which is the key in the match.players object)
+                const opponentSocketId = Object.keys(match.players).find(id => id !== socket.id);
+                if (opponentSocketId) {
+                    const opponentSocket = match.players[opponentSocketId].socket;
                     if (opponentSocket) {
                          opponentSocket.emit('match_ended_opponent_disconnect', {
-                            winner: match.players[opponentId].username,
-                            finalScore: match.players[opponentId].score 
+                            winner: match.players[opponentSocketId].username,
+                            finalScore: match.players[opponentSocketId].score 
                          });
                     }
                 }
