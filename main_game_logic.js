@@ -73,7 +73,7 @@ socket.on('searching', () => {
 socket.on('match_started', (data) => {
     currentMatchId = data.matchId;
     
-    // Determine opponent's name from playerMap (since data.opponent is sometimes undefined)
+    // Determine opponent's name from playerMap
     const opponentUsername = Object.values(data.playerMap).find(name => name !== myUsername) || 'Opponent';
 
     statusEl.textContent = `🤝 Match Found! Opponent: ${opponentUsername}. Getting ready...`;
@@ -83,8 +83,9 @@ socket.on('match_started', (data) => {
     playerScoreEl.textContent = myScore;
     opponentScoreEl.textContent = opponentScore;
     
-    // Server will send 'multiplayer_new_round' after the 1s delay (from server.js)
-    // We rely on that event to switch the UI from 'searching' to 'game'.
+    // ⚠️ CRITICAL UI FIX: Hide the status and show the game container
+    statusEl.style.display = 'none'; 
+    gameContainerEl.style.display = 'block'; 
 });
 
 socket.on('multiplayer_new_round', (data) => { 
@@ -98,7 +99,7 @@ socket.on('multiplayer_new_round', (data) => {
     roundDisplayEl.textContent = `▶️ Round ${data.roundNumber} of ${data.maxRounds}`;
     flagImageEl.src = data.image;
 
-    // FIX A: Robustly update scores using the username map from the server
+    // Robustly update scores using the username map from the server
     const scoreMap = data.scores || {};
     const localScore = scoreMap[myUsername] || 0;
     
@@ -205,7 +206,7 @@ socket.on('match_ended_opponent_disconnect', (data) => {
 });
 
 
-// --- 5. USER INPUT HANDLER (CRITICAL FIX: Correct Emission Name) ---
+// --- 5. USER INPUT HANDLER (CORRECT EMISSION NAME) ---
 
 function handleAnswer(answer, selectedButton) {
     if (isAnswered || !currentMatchId) return;
