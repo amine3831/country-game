@@ -9,13 +9,9 @@
 </head>
 <body>
 
-    <!-- --- SOLO GAME UI --- -->
     <div id="game-container">
 
-        <div id="status" class="status-message">
-            Connecting to server...
-        </div>
-
+        <div id="status" class="status-message">Loading…</div>
         <div id="round-display"></div>
 
         <img id="current-flag" style="display:none;" />
@@ -37,34 +33,27 @@
 
     </div>
 
-    <!-- --- SOCKET.IO --- -->
+    <!-- SOCKET.IO -->
     <script src="/socket.io/socket.io.js"></script>
 
-    <!-- --- SOLO GAME INITIALIZATION (THIS FIXES EVERYTHING) --- -->
-    <script>
-        const urlParams = new URLSearchParams(window.location.search);
-        const userId = urlParams.get("userId");
-        const username = urlParams.get("username");
+    <!-- CRITICAL: LOAD client_auth_menu.js FIRST -->
+    <script src="/client_auth_menu.js"></script>
 
-        // Connect socket directly for solo mode, no menu logic involved
-        const socket = io({
-            query: { userId, username }
-        });
-
-        // When authenticated → start solo game logic
-        socket.on("auth_successful", () => {
-            console.log("Auth OK → Starting Solo Game Logic");
-            initializeSoloGameLogic(socket);
-        });
-
-        // If something goes wrong → redirect
-        socket.on("unauthorized_access", () => {
-            window.location.href = "/login";
-        });
-    </script>
-
-    <!-- --- SOLO GAME LOGIC FILE (unchanged) --- -->
+    <!-- SIMPLE GAME LOGIC -->
     <script src="/simple_game_logic.js"></script>
+
+    <script>
+        // Wait until client_auth_menu.js initializes socket
+        function waitForSocket() {
+            if (window.socket) {
+                console.log("Solo: Using existing socket");
+                initializeSoloGameLogic(window.socket);
+            } else {
+                setTimeout(waitForSocket, 50);
+            }
+        }
+        waitForSocket();
+    </script>
 
 </body>
 </html>
