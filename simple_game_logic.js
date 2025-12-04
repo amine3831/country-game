@@ -1,84 +1,60 @@
-// simple_game_logic.js - Handles Solo Game Flow and UI
+// simple_game_logic.js (FINAL CORRECTED VERSION)
 
-// --- 1. GLOBAL UI REFERENCES & STATE ---
+// --- 1. GLOBAL GAME STATE VARIABLES & ELEMENT REFERENCES ---
+let isAnswered = false; 
 
-// Element references matching simple_game.html:
 const gameContainerEl = document.getElementById('game-container');
+const statusEl = document.getElementById('status');
+const roundDisplayEl = document.getElementById('round-display');
 const flagImageEl = document.getElementById('current-flag');
 const optionsContainerEl = document.getElementById('options-container');
-const roundDisplayEl = document.getElementById('round-display');
 const resultMessageEl = document.getElementById('result-message');
-const statusEl = document.getElementById('status');
-const playerScoreEl = document.getElementById('player-score');
-const highscoreEl = document.getElementById('opponent-score'); 
+const playerScoreEl = document.getElementById('player-score'); 
+const opponentScoreEl = document.getElementById('opponent-score'); 
+const scoreboardContainerEl = document.getElementById('scoreboard-container');
 
-let soloScore = 0;
-let isAnswered = false;
-
-
-// --- 2. UTILITY FUNCTIONS ---
-
+// Helper function to get CSS variable values
 function getCssVar(name) {
-    // Helper to fetch CSS variables for colors
     return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 }
 
-function handleSoloAnswer(answer, selectedButton, socket) {
-    if (isAnswered) return;
-    
-    isAnswered = true;
-    selectedButton.classList.add('selected');
-
-    // Disable all options immediately
-    optionsContainerEl.querySelectorAll('.option-button').forEach(btn => {
-        btn.disabled = true;
-    });
-
-    resultMessageEl.textContent = 'Submitting answer...';
-    resultMessageEl.style.color = getCssVar('--text-color');
-
-    // Emit the answer to the server
-    socket.emit('submit_solo_answer', { answer: answer });
-}
-
+// Helper function to reset the UI elements
 function resetGameUI() {
-    // Hide game elements and show status
     statusEl.style.display = 'flex';
+    statusEl.textContent = 'Connecting to server...';
     roundDisplayEl.textContent = '';
     flagImageEl.style.display = 'none';
     optionsContainerEl.style.display = 'none';
     resultMessageEl.textContent = '';
     
-    // Clear the high score and streak displays
     playerScoreEl.textContent = '0';
-    highscoreEl.textContent = '0';
+    opponentScoreEl.textContent = '0';
+    scoreboardContainerEl.style.display = 'flex';
 }
 
-
-// --- 3. CORE SOLO GAME INITIALIZATION WRAPPER ---
-
-// CRITICAL FIX: All game logic runs inside this function, called by client_auth_menu.js
-window.initializeSoloGameLogic = function(socket) {
+// --- 2. CORE SOLO GAME INITIALIZATION WRAPPER ---
+// This function MUST be defined globally and wait to be called by client_auth_menu.js
+window.initializeSoloGameLogic = function(socket) { 
     console.log("Solo game logic starting and listeners attaching...");
     
-    // Initial State Reset
-    soloScore = 0;
-    resetGameUI();
+    let soloScore = 0; // Local score for the current streak
 
     // Send the initial start signal to the server
-    socket.emit('start_solo_game');
-
+    socket.emit('start_solo_game'); // <--- Sends the request for the first round
+    
     // --- Solo Game Socket Listeners ---
     
     socket.on('solo_new_round', (data) => {
         isAnswered = false;
         
-        // Show game elements
+        // Hide the "Connecting" status and show game elements
         statusEl.style.display = 'none';
         flagImageEl.style.display = 'block';
         optionsContainerEl.style.display = 'flex';
+        scoreboardContainerEl.style.display = 'flex';
         
         // Update display elements
+        soloScore = data.streak;
         roundDisplayEl.textContent = `Streak: ${soloScore}`;
         resultMessageEl.textContent = 'Select the correct country!';
         resultMessageEl.style.color = getCssVar('--text-color');
@@ -86,8 +62,7 @@ window.initializeSoloGameLogic = function(socket) {
         // Update flag and score
         flagImageEl.src = data.image;
         playerScoreEl.textContent = soloScore;
-        // Server sends the current High Score on every new round
-        highscoreEl.textContent = data.highScore; 
+        opponentScoreEl.textContent = data.highScore; // Displaying High Score as Opponent Score
 
         // Populate buttons
         optionsContainerEl.innerHTML = '';
@@ -95,25 +70,22 @@ window.initializeSoloGameLogic = function(socket) {
             const button = document.createElement('button');
             button.className = 'option-button';
             button.textContent = optionText;
-            // Use an anonymous function to pass the socket object to the handler
             button.onclick = () => handleSoloAnswer(optionText, button, socket);
             optionsContainerEl.appendChild(button);
         });
     });
 
     socket.on('solo_feedback', (data) => {
-        // We cannot rely on 'selected' class existing, so we find the button by text
         const selectedButton = optionsContainerEl.querySelector('.option-button.selected') || 
                                optionsContainerEl.querySelector('.option-button:disabled:not(.correct)');
         
+        // Disabling all buttons after feedback is received
+        optionsContainerEl.querySelectorAll('.option-button').forEach(btn => btn.disabled = true);
+        
         if (data.isCorrect) {
-            soloScore++;
-            playerScoreEl.textContent = soloScore;
             
             if (selectedButton) selectedButton.classList.remove('selected');
-            optionsContainerEl.querySelectorAll('.option-button').forEach(btn => btn.disabled = true); // Ensure all are disabled
             
-            // Highlight the correct answer (which might be the selected one)
             optionsContainerEl.querySelectorAll('.option-button').forEach(btn => {
                 if (btn.textContent === data.correctAnswer) {
                     btn.classList.add('correct');
@@ -123,10 +95,10 @@ window.initializeSoloGameLogic = function(socket) {
             resultMessageEl.textContent = '✅ CORRECT! Next flag loading...';
             resultMessageEl.style.color = getCssVar('--success-color');
             
-            // Start next round after a delay
              setTimeout(() => {
-                socket.emit('request_solo_round'); // Request a new round from the server
-             }, 1000); // 1 second delay
+                // Request next round (Server handles streak increment)
+                socket.emit('request_solo_round'); 
+             }, 1000); 
              
         } else {
             // Incorrect answer: Game Over
@@ -142,32 +114,48 @@ window.initializeSoloGameLogic = function(socket) {
             
             resultMessageEl.textContent = `❌ INCORRECT! Correct was ${data.correctAnswer}.`;
             resultMessageEl.style.color = getCssVar('--error-color');
-            
-            // Server sends 'solo_game_over' next.
         }
     });
     
     socket.on('solo_game_over', (data) => {
-        soloScore = 0; // Reset client streak
-        
-        // Hide game elements
-        flagImageEl.style.display = 'none';
-        optionsContainerEl.style.display = 'none';
-        resultMessageEl.style.display = 'none';
-        roundDisplayEl.style.display = 'none';
         
         // Display final score status
         statusEl.style.display = 'flex';
         statusEl.textContent = `Game Over! Final Streak: ${data.score}. High Score: ${data.highScore}`;
         statusEl.style.color = getCssVar('--primary-color');
         
-        // Update scoreboard one last time
-        playerScoreEl.textContent = '0';
-        highscoreEl.textContent = data.highScore; 
+        // Hide game elements
+        flagImageEl.style.display = 'none';
+        optionsContainerEl.style.display = 'none';
+        roundDisplayEl.style.display = 'none';
         
-        // After game over, clicking the status text can lead back to the main menu
-        statusEl.onclick = () => {
-             window.location.href = 'index.html' + window.location.search;
-        };
+        // Offer to return to menu
+        statusEl.style.cursor = 'pointer';
+        // Go back to the menu (index.html)
+        statusEl.onclick = () => window.location.href = 'index.html' + window.location.search; 
     });
 };
+
+// --- 3. USER INPUT HANDLER (ADJUSTED TO ACCEPT SOCKET) ---
+// This function is defined outside the wrapper but uses the socket passed to it
+function handleSoloAnswer(answer, selectedButton, socket) {
+    if (isAnswered) return;
+    
+    isAnswered = true;
+    selectedButton.classList.add('selected');
+
+    optionsContainerEl.querySelectorAll('.option-button').forEach(btn => {
+        if (btn !== selectedButton) {
+            btn.disabled = true;
+        }
+    });
+    
+    // Emit the answer to the server
+    socket.emit('submit_solo_answer', { answer: answer });
+    
+    resultMessageEl.textContent = 'Submitting answer...';
+    resultMessageEl.style.color = getCssVar('--text-color');
+}
+
+// Initial Call: Reset UI to the 'Connecting' state when the file loads
+resetGameUI();
