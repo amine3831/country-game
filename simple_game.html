@@ -1,285 +1,70 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Flag Quiz Online - Simple Game</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <style>
-        /* Apply box-sizing globally to ensure margins/padding don't increase the total height */
-        * {
-            box-sizing: border-box;
-        }
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Solo Flag Game</title>
 
-        /* === 1. FULL-SCREEN DESIGN & NO SCROLL === */
-        :root {
-            --primary-color: #3f51b5; /* Indigo */
-            --secondary-color: #ff9800; /* Orange - Selected Answer */
-            --success-color: #4caf50; /* Green - Correct Answer */
-            --error-color: #f44336; /* Red - Incorrect Answer */
-            --text-color: #333;
-            --bg-gradient: linear-gradient(to bottom, #d2e3f4, #f8f9fa); 
-        }
-
-        body { 
-            font-family: 'Arial', sans-serif; 
-            text-align: center; 
-            background: var(--bg-gradient); 
-            margin: 0;
-            padding: 0;
-            display: flex;
-            flex-direction: column; /* Allows header at the top */
-            justify-content: flex-start;
-            align-items: center; 
-            height: 100vh;
-            width: 100vw;
-            color: var(--text-color);
-            font-size: 16px; 
-            overflow: hidden; /* Ensures no scrollbar is ever visible */
-        }
-        
-        /* Header style (used for Exit/Back button) */
-        header {
-            padding: 10px; 
-            border-bottom: 1px solid #ccc; 
-            width: 100%; 
-            background: white;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        #game-container { 
-            width: 100%; 
-            height: calc(100vh - 40px); /* Adjusted height to account for the header */
-            margin: 0 auto; 
-            padding: 0; 
-            display: flex; 
-            flex-direction: column;
-            background-color: transparent; 
-        }
-
-        /* Centers content when only the status message is visible */
-        #game-container.centered-status {
-            justify-content: center;
-            align-items: center; 
-        }
-
-        /* === 2. PRECISE 100vh FLOW LAYOUT (Adjusted percentages for remaining space) === */
-        
-        h1 {
-            color: var(--primary-color);
-            font-size: 6vw; 
-            height: 8vh; 
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            margin: 0; 
-            margin-bottom: 1vh; 
-            padding: 0 3vw; 
-            background-color: transparent; 
-        }
-
-        #status {
-            height: 7vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            font-weight: bold;
-            font-size: 5vw; 
-            width: 100%;
-            margin: 0;
-            margin-bottom: 1vh; 
-            padding: 0 3vw;
-            /* Initially visible until solo game logic hides it */
-            display: flex; 
-            background-color: transparent; 
-        }
-
-        #round-display {
-            height: 7vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            font-size: 5vw; 
-            margin: 0;
-            margin-bottom: 1vh; 
-            padding: 0 3vw;
-            background-color: transparent; 
-        }
-
-        .flag-image { 
-            max-height: 20vh; 
-            width: 90%; 
-            margin: 0 auto; 
-            object-fit: contain; 
-            border-radius: 8px; 
-            background-color: transparent;
-            margin-bottom: 1vh; 
-        }
-        
-        #options-container {
-            display: flex;
-            flex-wrap: wrap;
-            justify-content: center;
-            width: 90%; 
-            height: auto; 
-            margin: 0 auto; 
-            padding: 0 3vw; 
-        }
-        
-        .option-button { 
-            height: 6vh; 
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            padding: 0 1vw; 
-            margin: 0.5vh 0.5vh 1vh 0.5vh; 
-            cursor: pointer; 
-            background-color: var(--primary-color);
-            color: white;
-            border: none;
-            border-radius: 8px;
-            font-size: 4.5vw; 
-            transition: background-color 0.3s, transform 0.1s;
-            width: calc(50% - 1vh); /* Forces 2 per row */
-            box-shadow: 0 3px #303f9f; 
-            white-space: nowrap; 
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-        
-        /* State styles for buttons */
-        .option-button:hover:not(:disabled) {
-            background-color: #303f9f;
-            transform: translateY(-2px);
-            box-shadow: 0 5px #303f9f;
-        }
-        .option-button:disabled {
-            background-color: #ccc; 
-            cursor: default;
-            box-shadow: none;
-        }
-        .option-button.correct {
-            background-color: var(--success-color) !important;
-            box-shadow: 0 3px #388e3c !important; 
-        }
-        .option-button.incorrect {
-            background-color: var(--error-color) !important;
-            opacity: 0.5; 
-            box-shadow: none !important;
-        }
-        .option-button.selected {
-            background-color: var(--secondary-color) !important; 
-            box-shadow: 0 0 8px 3px var(--secondary-color) !important;
-            transform: scale(1.05);
-        }
-
-        #result-message {
-            height: 10vh; 
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            font-weight: bold;
-            font-size: 5vw; 
-            width: 100%;
-            margin: 0;
-            margin-bottom: 1vh; 
-            padding: 0 3vw;
-            background-color: transparent; 
-        }
-
-        #time-display {
-            height: 7vh;
-            display: none; /* Hide time display for simple game mode */
-        }
-
-        .score-board { 
-            height: 8vh; 
-            background-color: transparent; 
-            display: flex; 
-            width: 90%;
-            max-width: 450px; 
-            margin: 0 auto; 
-            padding: 1vh 0; 
-            border: 2px solid #333; 
-            border-radius: 8px;
-            overflow: hidden; 
-        }
-
-        .score-board span {
-            flex-grow: 1;
-            padding: 0; 
-            font-weight: bold;
-            font-size: 4.5vw; 
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-        }
-        
-        .score-board .label {
-            font-size: 3vw;
-            font-weight: normal;
-        }
-
-        /* Adjust colors/styles for single-player score board */
-        #player-score-container { 
-            color: white;
-            background-color: var(--primary-color); 
-            border-right: 2px solid #333; 
-        }
-        
-        #opponent-score-container { 
-            color: var(--text-color);
-            background-color: white; 
-        }
-    </style>
+    <link rel="stylesheet" href="/styles.css" />
 </head>
-
 <body>
 
-<header>
-    <a href="#" onclick="window.location.href='index.html' + window.location.search;" 
-       style="color: var(--primary-color); text-decoration: none; font-weight: bold;">
-        &larr; Exit to Menu
-    </a>
-    <span id="welcome-message">Simple Game Mode</span> 
-    <a href="/logout" style="color: var(--error-color); text-decoration: none; font-weight: bold;">Logout</a>
-</header>
-<div id="game-container">
-    
-    <h1>⭐ Flag Streak</h1>
+    <!-- --- SOLO GAME UI --- -->
+    <div id="game-container">
 
-    <div id="status">Connecting to server...</div>
-
-    <div id="round-display"></div>
-
-    <img id="current-flag" class="flag-image" src="data:image/gif;base64,R0GODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" alt="Flag to guess">
-
-    <div id="options-container">
+        <div id="status" class="status-message">
+            Connecting to server...
         </div>
 
-    <p id="result-message"></p>
+        <div id="round-display"></div>
 
-    <div id="time-display">
+        <img id="current-flag" style="display:none;" />
+
+        <div id="options-container" style="display:none;"></div>
+
+        <div id="result-message"></div>
+
+        <div id="scoreboard-container" style="display:flex;">
+            <div class="score-box">
+                <span>You</span>
+                <span id="player-score">0</span>
+            </div>
+            <div class="score-box">
+                <span>High Score</span>
+                <span id="opponent-score">0</span>
+            </div>
         </div>
 
-    <div class="score-board" id="scoreboard-container">
-        <span id="player-score-container">
-            <span id="player-score">0</span>
-            <span class="label">STREAK</span>
-        </span>
-        <span id="opponent-score-container">
-            <span id="opponent-score">0</span>
-            <span class="label">HIGH SCORE</span>
-        </span>
     </div>
 
-</div>
+    <!-- --- SOCKET.IO --- -->
+    <script src="/socket.io/socket.io.js"></script>
 
-<script src="/socket.io/socket.io.js"></script>
+    <!-- --- SOLO GAME INITIALIZATION (THIS FIXES EVERYTHING) --- -->
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        const userId = urlParams.get("userId");
+        const username = urlParams.get("username");
 
-<script src="client_auth_menu.js"></script> 
-<script src="simple_game_logic.js"></script>
+        // Connect socket directly for solo mode, no menu logic involved
+        const socket = io({
+            query: { userId, username }
+        });
+
+        // When authenticated → start solo game logic
+        socket.on("auth_successful", () => {
+            console.log("Auth OK → Starting Solo Game Logic");
+            initializeSoloGameLogic(socket);
+        });
+
+        // If something goes wrong → redirect
+        socket.on("unauthorized_access", () => {
+            window.location.href = "/login";
+        });
+    </script>
+
+    <!-- --- SOLO GAME LOGIC FILE (unchanged) --- -->
+    <script src="/simple_game_logic.js"></script>
 
 </body>
 </html>
