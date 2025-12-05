@@ -1,10 +1,6 @@
 // client_auth_menu.js - Handles Authentication Status and Game Mode Selection
 
-let socket;
-const hostname = window.location.hostname;
-const protocol = window.location.protocol;
-const port = window.location.port ? `:${window.location.port}` : '';
-const fullUrl = `${protocol}//${hostname}${port}`;
+let socket = null; // Initialize socket as null
 
 document.addEventListener('DOMContentLoaded', () => {
     
@@ -12,82 +8,97 @@ document.addEventListener('DOMContentLoaded', () => {
     const urlParams = new URLSearchParams(window.location.search);
     const userId = urlParams.get('userId');
     const username = urlParams.get('username');
+    const statusEl = document.getElementById('status'); // Get status element globally
 
-    if (!userId || !username) {
+    if (userId && username) {
+        
+        // Display username immediately
+        document.getElementById('username-display').textContent = username;
+        document.getElementById('welcome-message').style.display = 'flex';
+
+        // --- 2. GAME MODE SELECTION ---
+        const simpleGameButton = document.getElementById('start-simple-button');
+        const multiplayerButton = document.getElementById('start-multiplayer-button');
+        
+        // Simple Game Handler (HTTP-ONLY)
+        if (simpleGameButton) {
+            simpleGameButton.addEventListener('click', () => {
+                document.getElementById('mode-selection').style.display = 'none';
+                
+                // Navigate to the simple game page. NO SOCKET is created here.
+                window.location.href = '/simple_game' + window.location.search;
+            });
+        }
+        
+        // Multiplayer Handler (SOCKET CREATED HERE)
+        if (multiplayerButton) {
+            multiplayerButton.addEventListener('click', () => {
+                
+                // --- C. Update UI State ---
+                document.getElementById('mode-selection').style.display = 'none';
+                // Show status for connection/matchmaking
+                statusEl.style.display = 'flex';
+                
+                // --- A. Create Socket Connection Only for Multiplayer (If it doesn't exist) ---
+                if (!socket) {
+                    console.log("Creating Socket.io connection for Multiplayer mode...");
+                    // Connect using relative path and pass user data via query
+                    socket = io({
+                        query: { userId: userId, username: username }
+                    });
+                    
+                    // --- B. Set up Socket Listeners ---
+                    
+                    // Listener 1: Server confirms authentication and readiness
+                    socket.on('auth_successful', (data) => {
+                        console.log(`Socket authenticated as ${data.username}. Ready for multiplayer.`);
+                        
+                        // CRITICAL: Initialize game logic only after socket is ready.
+                        if (typeof window.initializeGameLogic === 'function') {
+                            // Pass the socket to the game logic to attach all listeners
+                            window.initializeGameLogic(socket); 
+                            console.log("Multiplayer game listeners attached.");
+                            
+                            // 4. Start Matchmaking AFTER successful authentication
+                            statusEl.textContent = '⏱️ Searching for opponent...';
+                            statusEl.style.color = '#333';
+                            socket.emit('start_multiplayer'); 
+
+                        } else {
+                            console.error("Initialization failed: main_game_logic.js did not define initializeGameLogic.");
+                            statusEl.textContent = 'Error initializing game.';
+                        }
+                    });
+
+                    // Listener 2: Handle connection errors/disconnection
+                    socket.on('disconnect', () => {
+                        console.log('Socket disconnected. Reconnecting...');
+                        statusEl.textContent = '🔴 Disconnected. Refresh to try again.';
+                        statusEl.style.color = getComputedStyle(document.documentElement).getPropertyValue('--error-color').trim() || 'red';
+                    });
+
+                } else {
+                    console.log("Socket already exists, restarting matchmaking flow.");
+                    // If socket exists (user previously clicked), just restart matchmaking flow
+                    statusEl.textContent = '⏱️ Searching for opponent...';
+                    statusEl.style.color = '#333';
+                    socket.emit('start_multiplayer');
+                }
+            });
+        }
+
+
+    } else {
+        // Not logged in: Redirect to login page
         window.location.href = '/login';
-        return;
     }
+});
 
-    // CRITICAL: Initialize socket connection with user data
-    socket = io(fullUrl, { query: { userId, username } });
-
-    // Display username immediately (only exists on index.html)
-    const usernameDisplay = document.getElementById('username-display');
-    if (usernameDisplay) usernameDisplay.textContent = username;
-
-    const welcomeMessage = document.getElementById('welcome-message');
-    if (welcomeMessage) welcomeMessage.style.display = 'flex';
-
-    // Listen for server confirmation
-    socket.on('auth_successful', (data) => {
-        console.log(`Socket authenticated as ${data.username}`);
-
-        const onIndex = !!document.getElementById("mode-selection");
-        const onSoloGame = !!document.getElementById("game-container");
-
-        // 1. Initialize Multiplayer Logic (only if on index.html)
-        if (onIndex && typeof window.initializeGameLogic === 'function') {
-            window.initializeGameLogic(socket);
-            console.log("Multiplayer logic initialized.");
-        }
-
-        // 2. Initialize Solo Logic ONLY on simple_game.html
-        if (onSoloGame && typeof window.initializeSoloGameLogic === 'function') {
-            window.initializeSoloGameLogic(socket);
-            console.log("Solo game logic initialized.");
-        }
-
-        // UI transitions (index.html only)
-        if (onIndex) {
-            const statusEl = document.getElementById('status');
-            if (statusEl) statusEl.style.display = 'none';
-
-            const modeSelectionEl = document.getElementById('mode-selection');
-            if (modeSelectionEl) modeSelectionEl.style.display = 'flex';
-
-            const logoutContainerEl = document.getElementById('logout-container');
-            if (logoutContainerEl) logoutContainerEl.style.display = 'block';
-        }
+// --- 3. LOGOUT HANDLER (UNCHANGED) ---
+const logoutButton = document.getElementById('logout-button');
+if (logoutButton) {
+    logoutButton.addEventListener('click', () => {
+        // Clear query parameters (simulates session end for this testing phase)
+        window.location.href = '/logout';
     });
-
-    // Handle unauthorized or invalid user ID
-    socket.on('unauthorized_access', () => {
-        console.error("Authentication failed. Redirecting to login.");
-        window.location.href = '/login';
-    });
-
-    // Handle server errors
-    socket.on('server_error', (data) => {
-        const statusEl = document.getElementById('status');
-        if (!statusEl) return;
-        statusEl.textContent = `Server Error: ${data.message}`;
-        statusEl.style.color = 'red';
-        statusEl.style.display = 'block';
-    });
-
-    // --- 2. BUTTON HANDLERS (index.html only) ---
-    const simpleGameButton = document.getElementById('start-simple-game');
-    const multiplayerButton = document.getElementById('start-multiplayer-button');
-
-    // Solo Game button exists ONLY on index.html
-    if (simpleGameButton) {
-        simpleGameButton.addEventListener('click', () => {
-            const modeSelectionEl = document.getElementById('mode-selection');
-            if (modeSelectionEl) modeSelectionEl.style.display = 'none';
-
-            window.location.href = '/simple_game' + window.location.search;
-        });
-    }
-
-    // Multiplayer button exists ONLY on index.html
-    if (multiplayerButton) {
+}
