@@ -8,10 +8,18 @@ document.addEventListener('DOMContentLoaded', () => {
     const urlParams = new URLSearchParams(window.location.search);
     const userId = urlParams.get('userId');
     const username = urlParams.get('username');
-    const statusEl = document.getElementById('status'); // Get status element globally
+    const statusEl = document.getElementById('status'); 
+    
+    // UI Elements
+    const modeSelectionEl = document.getElementById('mode-selection');
+    const gameAreaEl = document.getElementById('game-area');
 
     if (userId && username) {
         
+        // --- CRITICAL FIX: Ensure the correct container is visible on load ---
+        if (modeSelectionEl) modeSelectionEl.style.display = 'flex';
+        if (gameAreaEl) gameAreaEl.style.display = 'none';
+
         // Display username immediately
         document.getElementById('username-display').textContent = username;
         document.getElementById('welcome-message').style.display = 'flex';
@@ -23,7 +31,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Simple Game Handler (HTTP-ONLY)
         if (simpleGameButton) {
             simpleGameButton.addEventListener('click', () => {
-                document.getElementById('mode-selection').style.display = 'none';
+                if (modeSelectionEl) modeSelectionEl.style.display = 'none';
                 
                 // Navigate to the simple game page. NO SOCKET is created here.
                 window.location.href = '/simple_game' + window.location.search;
@@ -35,9 +43,14 @@ document.addEventListener('DOMContentLoaded', () => {
             multiplayerButton.addEventListener('click', () => {
                 
                 // --- C. Update UI State ---
-                document.getElementById('mode-selection').style.display = 'none';
+                if (modeSelectionEl) modeSelectionEl.style.display = 'none';
+                // We show the game area here, but it only contains the status message initially
+                if (gameAreaEl) gameAreaEl.style.display = 'flex'; 
+
                 // Show status for connection/matchmaking
-                statusEl.style.display = 'flex';
+                if (statusEl) {
+                    statusEl.style.display = 'flex';
+                }
                 
                 // --- A. Create Socket Connection Only for Multiplayer (If it doesn't exist) ---
                 if (!socket) {
@@ -60,28 +73,34 @@ document.addEventListener('DOMContentLoaded', () => {
                             console.log("Multiplayer game listeners attached.");
                             
                             // 4. Start Matchmaking AFTER successful authentication
-                            statusEl.textContent = '⏱️ Searching for opponent...';
-                            statusEl.style.color = '#333';
+                            if (statusEl) {
+                                statusEl.textContent = '⏱️ Searching for opponent...';
+                                statusEl.style.color = '#333';
+                            }
                             socket.emit('start_multiplayer'); 
 
                         } else {
                             console.error("Initialization failed: main_game_logic.js did not define initializeGameLogic.");
-                            statusEl.textContent = 'Error initializing game.';
+                            if (statusEl) statusEl.textContent = 'Error initializing game.';
                         }
                     });
 
                     // Listener 2: Handle connection errors/disconnection
                     socket.on('disconnect', () => {
                         console.log('Socket disconnected. Reconnecting...');
-                        statusEl.textContent = '🔴 Disconnected. Refresh to try again.';
-                        statusEl.style.color = getComputedStyle(document.documentElement).getPropertyValue('--error-color').trim() || 'red';
+                        if (statusEl) {
+                            statusEl.textContent = '🔴 Disconnected. Refresh to try again.';
+                            statusEl.style.color = getComputedStyle(document.documentElement).getPropertyValue('--error-color').trim() || 'red';
+                        }
                     });
 
                 } else {
                     console.log("Socket already exists, restarting matchmaking flow.");
                     // If socket exists (user previously clicked), just restart matchmaking flow
-                    statusEl.textContent = '⏱️ Searching for opponent...';
-                    statusEl.style.color = '#333';
+                    if (statusEl) {
+                        statusEl.textContent = '⏱️ Searching for opponent...';
+                        statusEl.style.color = '#333';
+                    }
                     socket.emit('start_multiplayer');
                 }
             });
