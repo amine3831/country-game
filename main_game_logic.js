@@ -7,10 +7,11 @@ let roundStartTime = 0;
 let myScore = 0;
 let opponentScore = 0;
 let isP1 = false; 
+let opponentUsername = 'Opponent'; // New variable for easy access
 
 // --- 2. ELEMENT REFERENCES ---
-// CRITICAL FIX: References the correct ID 'game-area'
-const gameContainerEl = document.getElementById('game-area'); 
+// These declarations must remain global so they are accessible by the functions below
+const gameContainerEl = document.getElementById('game-area'); // ⬅️ CRITICAL FIX: References 'game-area'
 const statusEl = document.getElementById('status');
 const roundDisplayEl = document.getElementById('round-display');
 const flagImageEl = document.getElementById('current-flag');
@@ -23,172 +24,121 @@ const opponentTimeEl = document.getElementById('opponent-time');
 const scoreboardContainerEl = document.getElementById('scoreboard-container');
 
 
-// --- 3. VISUAL/STATE MANAGEMENT ---
+// --- 3. EXPORTED INITIALIZATION FUNCTION ---
 
-function resetUI(showRoundDisplay = true) {
-    // Clear all dynamic content
-    optionsContainerEl.innerHTML = '';
-    flagImageEl.src = 'data:image/gif;base64,R0GODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'; 
-    resultMessageEl.textContent = '';
-    playerTimeEl.textContent = 'YOU: --';
-    opponentTimeEl.textContent = 'OPPONENT: --';
-    
-    const elementsToToggle = [
-        roundDisplayEl, flagImageEl, optionsContainerEl, 
-        resultMessageEl, playerTimeEl.parentElement, opponentTimeEl.parentElement, scoreboardContainerEl
-    ];
+/**
+ * Attaches all Socket.io listeners needed for the multiplayer game flow.
+ * Must be called once after a successful socket connection is established.
+ * @param {Socket} socket The established Socket.io connection object.
+ */
+window.initializeGameLogic = function(socket) {
+    console.log('Game logic initializing listeners...');
 
-    elementsToToggle.forEach(el => {
-        if (el) el.style.display = showRoundDisplay ? (el.id === 'options-container' ? 'flex' : 'block') : 'none';
-    });
-    
-    if (showRoundDisplay) {
-        document.querySelector('h1').style.display = 'none';
-        gameContainerEl.classList.remove('centered-status');
-        statusEl.style.display = 'flex'; 
-    } else {
-        document.querySelector('h1').style.display = 'flex';
-        gameContainerEl.classList.add('centered-status');
-        
-        const modeSelectionEl = document.getElementById('mode-selection');
-        if (modeSelectionEl && modeSelectionEl.style.display === 'flex') {
-            statusEl.style.display = 'none';
-        } else {
-             statusEl.style.display = 'flex';
-        }
-        
-        document.querySelector('#player-score-container .label').textContent = 'YOU';
-        document.querySelector('#opponent-score-container .label').textContent = 'OPPONENT';
-    }
-}
-
-
-// ⬅️ CRITICAL FIX: Wrapper function for Deferred Initialization
-window.initializeGameLogic = function(socket) { 
-    
-    const myUsername = document.getElementById('username-display').textContent; 
-
-    // --- 4. SOCKET LISTENERS (ATTACHED SAFELY HERE) ---
-
-    socket.on('searching', () => { 
-        statusEl.textContent = '⏱️ Searching for opponent...';
-        statusEl.style.color = getCssVar('--text-color');
-        resetUI(false);
-    });
-
+    // Listener 1: Match starts
     socket.on('match_started', (data) => {
-        currentMatchId = data.matchId;
-        
-        const opponentUsername = Object.values(data.playerMap).find(name => name !== myUsername) || 'Opponent';
+        console.log(`[CLIENT] Match started! ID: ${data.matchId}`);
 
-        statusEl.textContent = `🤝 Match Found! Opponent: ${opponentUsername}. Getting ready...`;
+        // --- 3.1. UPDATE GAME STATE ---
+        currentMatchId = data.matchId;
+        isP1 = data.isP1; // True if this player is P1
+        opponentUsername = data.opponentUsername; // Store opponent's name
+
+        // --- 3.2. SHOW GAME UI & HIDE STATUS ---
         
-        myScore = 0;
-        opponentScore = 0;
+        // CRITICAL FIX: Ensure all individual game elements are displayed
+        roundDisplayEl.style.display = 'block'; 
+        flagImageEl.style.display = 'block'; 
+        optionsContainerEl.style.display = 'flex';
+        scoreboardContainerEl.style.display = 'flex'; // Show the scoreboard
+        
+        statusEl.style.display = 'none'; // Hide the "Searching for opponent..." message
+
+        // Update Opponent's name in the scoreboard label
+        const opponentLabelEl = document.getElementById('opponent-score-container').querySelector('.label');
+        if (opponentLabelEl) {
+             opponentLabelEl.textContent = opponentUsername.toUpperCase();
+        }
+
+        // --- 3.3. START THE FIRST ROUND ---
+        handleNewRound(data.initialRound, isP1, socket);
+    });
+
+    // Listener 2: New Round starts
+    socket.on('new_round', (roundData) => {
+        console.log(`[CLIENT] Starting Round ${roundData.roundNumber}`);
+        handleNewRound(roundData, isP1, socket);
+    });
+    
+    // Listener 3: Opponent has answered (UI update)
+    socket.on('opponent_answered', (data) => {
+        console.log(`[CLIENT] Opponent (${data.opponentUsername}) answered!`);
+        opponentTimeEl.textContent = `${data.opponentUsername.toUpperCase()}: Answered!`;
+    });
+
+    // Listener 4: Round results are in
+    socket.on('round_result', (data) => {
+        console.log(`[CLIENT] Round ${data.roundNumber} Result Received.`);
+        
+        const myScoreUpdate = isP1 ? data.player1Score : data.player2Score;
+        const opponentScoreUpdate = isP1 ? data.player2Score : data.player1Score;
+        
+        const myTime = isP1 ? data.player1Time : data.player2Time;
+        const oppTime = isP1 ? data.player2Time : data.player1Time;
+        
+        const myCorrect = isP1 ? data.player1Correct : data.player2Correct;
+        const oppCorrect = isP1 ? data.player2Correct : data.player1Correct;
+        
+        // Update total scores
+        myScore = myScoreUpdate;
+        opponentScore = opponentScoreUpdate;
         playerScoreEl.textContent = myScore;
         opponentScoreEl.textContent = opponentScore;
         
-        // UI Fixes (Hiding status and showing game area)
-        if (statusEl) {
-            statusEl.style.display = 'none'; 
-        }
+        // Display correctness and time
+        resultMessageEl.textContent = `Correct Answer: ${data.correctAnswer}`;
+        resultMessageEl.style.color = getCssVar('--success-color');
         
-        if (gameContainerEl) {
-            gameContainerEl.style.display = 'block'; 
-        }
-    });
+        // Time Display
+        playerTimeEl.textContent = `YOU: ${myTime.toFixed(2)}s (${myCorrect ? '✅' : '❌'})`;
+        opponentTimeEl.textContent = `${opponentUsername.toUpperCase()}: ${oppTime.toFixed(2)}s (${oppCorrect ? '✅' : '❌'})`;
 
-    socket.on('multiplayer_new_round', (data) => { 
-        isAnswered = false;
-        resetUI(true); // Show quiz elements
-        
-        roundStartTime = Date.now(); 
-        
-        statusEl.textContent = 'Go!';
-        statusEl.style.color = getCssVar('--text-color');
-        roundDisplayEl.textContent = `▶️ Round ${data.roundNumber} of ${data.maxRounds}`;
-        flagImageEl.src = data.image;
-
-        const scoreMap = data.scores || {};
-        const localScore = scoreMap[myUsername] || 0;
-        
-        const opponentUsername = Object.keys(scoreMap).find(name => name !== myUsername);
-        const opponentScore = opponentUsername ? scoreMap[opponentUsername] : 0;
-
-        playerScoreEl.textContent = localScore;
-        opponentScoreEl.textContent = opponentScore;
-        
+        // Highlight options based on result
         optionsContainerEl.querySelectorAll('.option-button').forEach(btn => {
-            btn.classList.remove('correct', 'incorrect', 'selected');
-            btn.disabled = false;
+            const country = btn.getAttribute('data-country');
+            btn.disabled = true; // Keep all disabled
+            
+            // Highlight the correct answer
+            if (country === data.correctAnswer) {
+                btn.classList.remove('selected');
+                btn.classList.add('correct');
+            } else if (btn.classList.contains('selected')) {
+                // Highlight my incorrect answer
+                btn.classList.add('incorrect');
+            }
         });
         
-        optionsContainerEl.innerHTML = ''; 
-        data.options.forEach(optionText => {
-            const button = document.createElement('button');
-            button.className = 'option-button';
-            button.textContent = optionText;
-            button.onclick = () => handleAnswer(optionText, button, socket); // Pass socket to handler
-            optionsContainerEl.appendChild(button);
-        });
-        
-        resultMessageEl.textContent = 'Select the correct country!';
-        resultMessageEl.style.color = getCssVar('--text-color');
-        playerTimeEl.textContent = 'YOU: --';
-        opponentTimeEl.textContent = 'OPPONENT: --';
+        // Wait 3 seconds before the next round event (which is handled by the server)
     });
 
-    socket.on('multiplayer_feedback', (data) => { 
-        const selectedButton = optionsContainerEl.querySelector('.option-button.selected');
-
-        if (data.isCorrect) {
-            selectedButton.classList.add('correct');
-            resultMessageEl.textContent = '✅ CORRECT! Waiting for opponent...';
-            resultMessageEl.style.color = getCssVar('--success-color');
+    // Listener 5: Match ends normally
+    socket.on('match_ended', (data) => {
+        console.log(`[CLIENT] Match ended.`);
+        resetUI(false); // Clear game elements
+        
+        const finalWinner = data.winner;
+        const isTie = data.finalScore1 === data.finalScore2;
+        
+        if (isTie) {
+            statusEl.textContent = `🤝 Match ended in a DRAW! Final Score: ${data.finalScore1} - ${data.finalScore2}`;
+        } else if (finalWinner === 'Draw') { // Fallback check, though handled by score comparison above
+             statusEl.textContent = `🤝 Match ended in a DRAW! Final Score: ${data.finalScore1} - ${data.finalScore2}`;
         } else {
-            selectedButton.classList.add('incorrect');
-            optionsContainerEl.querySelectorAll('.option-button').forEach(btn => {
-                if (btn.textContent === data.correctAnswer) {
-                    btn.classList.add('correct');
-                }
-            });
-            resultMessageEl.textContent = `❌ INCORRECT. Correct was ${data.correctAnswer}. Waiting for opponent...`;
-            resultMessageEl.style.color = getCssVar('--error-color');
+             statusEl.textContent = `🏆 MATCH OVER! ${finalWinner} wins! Final Score: ${data.finalScore1} - ${data.finalScore2}`;
         }
         
-        playerTimeEl.textContent = `YOU: Answered`; 
-        optionsContainerEl.querySelectorAll('.option-button').forEach(btn => btn.disabled = true);
-    });
+        statusEl.style.color = getCssVar('--primary-color');
+        statusEl.style.display = 'block';
 
-    socket.on('match_game_over', (data) => { 
-        resetUI(false); 
-        
-        const localScoreData = data.scores.find(s => s.username === myUsername);
-        const oppScoreData = data.scores.find(s => s.username !== myUsername);
-        
-        const localScore = localScoreData ? localScoreData.score : 0;
-        const oppScore = oppScoreData ? oppScoreData.score : 0;
-        const finalScore = `Final Score: ${localScore} - ${oppScore}`;
-        let message = '';
-        let color = getCssVar('--text-color');
-
-        if (data.winner === myUsername) {
-            message = `🎉 YOU WON! ${finalScore}`;
-            color = getCssVar('--success-color');
-        } else if (data.winner === 'Tie') {
-            message = `🤝 DRAW. ${finalScore}`;
-            color = getCssVar('--text-color');
-        } else {
-            message = `😭 YOU LOST. ${finalScore}`;
-            color = getCssVar('--error-color');
-        }
-        
-        statusEl.textContent = message;
-        statusEl.style.color = color;
-        playerScoreEl.textContent = localScore;
-        opponentScoreEl.textContent = oppScore;
-        scoreboardContainerEl.style.display = 'flex';
-        
         setTimeout(() => {
             statusEl.textContent += ' Click here to choose a new game mode!';
             statusEl.style.cursor = 'pointer';
@@ -196,10 +146,13 @@ window.initializeGameLogic = function(socket) {
         }, 5000);
     });
 
+    // Listener 6: Match ends due to opponent disconnect
     socket.on('match_ended_opponent_disconnect', (data) => { 
+        console.log(`[CLIENT] Opponent disconnected.`);
         resetUI(false);
         statusEl.textContent = `🚨 Opponent disconnected! You win by forfeit.`;
         statusEl.style.color = getCssVar('--error-color');
+        statusEl.style.display = 'block';
         
         setTimeout(() => {
             statusEl.textContent += ' Click here to choose a new game mode!';
@@ -210,12 +163,59 @@ window.initializeGameLogic = function(socket) {
 };
 
 
-// --- 5. USER INPUT HANDLER ---
+// --- 4. NEW ROUND LOGIC ---
 
+/**
+ * Sets up the UI for a new quiz round.
+ * @param {object} roundData - Data for the current round (flagImage, options, roundNumber).
+ * @param {boolean} isPlayer1 - True if the current user is P1.
+ * @param {Socket} socket - The active Socket.io connection.
+ */
+function handleNewRound(roundData, isPlayer1, socket) {
+    if (!currentMatchId) return;
+
+    // Reset state and UI
+    resetUI(); 
+    roundStartTime = Date.now();
+    isAnswered = false; // Reset answer status for the new round
+    
+    // Update player roles/status
+    const role = isPlayer1 ? 'P1 (Blue)' : 'P2 (Red)';
+    roundDisplayEl.textContent = `Round ${roundData.roundNumber} / 5 | Playing as ${role}`;
+    
+    // Display flag
+    flagImageEl.src = roundData.flagImage;
+    
+    // Build options
+    roundData.options.forEach(country => {
+        const button = document.createElement('button');
+        button.className = 'mode-button option-button';
+        button.textContent = country;
+        button.setAttribute('data-country', country);
+        
+        // Attach click handler
+        button.addEventListener('click', () => {
+            handleAnswer(country, button, socket);
+        });
+        
+        optionsContainerEl.appendChild(button);
+    });
+}
+
+
+// --- 5. USER INPUT HANDLER (ADJUSTED TO ACCEPT SOCKET) ---
+
+/**
+ * Handles the player's answer selection and emits it to the server.
+ * @param {string} answer - The country name selected.
+ * @param {HTMLElement} selectedButton - The button element clicked.
+ * @param {Socket} socket - The active Socket.io connection.
+ */
 function handleAnswer(answer, selectedButton, socket) {
     if (isAnswered || !currentMatchId) return;
     
     isAnswered = true;
+    const answerTime = (Date.now() - roundStartTime) / 1000;
 
     selectedButton.classList.add('selected');
     
@@ -225,10 +225,10 @@ function handleAnswer(answer, selectedButton, socket) {
         }
     });
     
-    // Uses the passed-in socket instance
     socket.emit('submit_multiplayer_answer', {
         matchId: currentMatchId,
-        answer: answer
+        answer: answer,
+        time: answerTime // Include time in submission for server
     });
     
     resultMessageEl.textContent = 'Submitting answer...';
@@ -238,6 +238,31 @@ function handleAnswer(answer, selectedButton, socket) {
 
 // --- 6. UTILITY ---
 
+/** Gets a CSS variable value. */
 function getCssVar(name) {
     return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+}
+
+/** Resets the UI components for the start of a round or after a game ends. */
+function resetUI(showRoundDisplay = true) {
+    // Clear all dynamic content
+    optionsContainerEl.innerHTML = '';
+    flagImageEl.src = 'data:image/gif;base64,R0GODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'; 
+    resultMessageEl.textContent = '';
+    
+    // Reset time display
+    playerTimeEl.textContent = 'YOU: --';
+    opponentTimeEl.textContent = `${opponentUsername.toUpperCase()}: --`;
+    
+    // Ensure game elements are visible/hidden as appropriate
+    roundDisplayEl.style.display = showRoundDisplay ? 'block' : 'none';
+    flagImageEl.style.display = showRoundDisplay ? 'block' : 'none';
+    optionsContainerEl.style.display = showRoundDisplay ? 'flex' : 'none';
+    scoreboardContainerEl.style.display = showRoundDisplay ? 'flex' : 'none';
+    
+    // Reset button states and classes
+    optionsContainerEl.querySelectorAll('.option-button').forEach(btn => {
+        btn.disabled = false;
+        btn.classList.remove('selected', 'correct', 'incorrect');
+    });
 }
