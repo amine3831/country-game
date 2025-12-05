@@ -10,6 +10,10 @@ const app = express();
 const server = http.createServer(app);
 const io = socketio(server);
 
+// Middleware to parse JSON bodies and URL-encoded data
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
 
 // --- 2. IN-MEMORY TESTING DATABASE & GAME DATA ---
 let users = []; 
@@ -46,372 +50,480 @@ try {
         image: item.image, 
     }));
     
-    CONFUSION_GROUPS_MAP = require('./groups');
-    if (typeof CONFUSION_GROUPS_MAP === 'object' && CONFUSION_GROUPS_MAP !== null && !Array.isArray(CONFUSION_GROUPS_MAP)) {
-        CONFUSION_GROUPS_MAP = CONFUSION_GROUPS_MAP.CONFUSION_GROUPS_MAP || CONFUSION_GROUPS_MAP.groups || CONFUSION_GROUPS_MAP;
-    }
-
-    console.log(`✅ Flag data loaded: ${flagData.length} flags.`);
+    // Load confusion groups from the groups.js file
+    const groupsModule = require('./groups');
+    CONFUSION_GROUPS_MAP = groupsModule.CONFUSION_GROUPS_MAP;
+    
+    console.log(`✅ Loaded ${flagData.length} flags.`);
+    console.log(`✅ Loaded ${Object.keys(CONFUSION_GROUPS_MAP).length} confusion groups.`);
+    
 } catch (error) {
-    console.error("❌ CRITICAL ERROR: Failed to load game data or groups map. Game will not function:", error.message);
+    console.error("Error loading game data (flag_data.json or groups.js):", error.message);
 }
 
+// Global variable to manage SOLO game sessions (HTTP-based)
+// Key: userId, Value: { currentQuestionIndex: number, currentStreak: number, lastQuestion: object }
+let simpleGameSessions = {};
 
-// --- 3. GLOBAL STATE & CONFIGURATION ---
-
-let waitingPlayer = null; 
-const activeMatches = {};  
-const simpleGames = {}; 
-const MAX_ROUNDS = 10;
-const ROUND_TIME_LIMIT_MS = 10000;
-
-app.use(express.static(path.join(__dirname)));
-app.use(express.urlencoded({ extended: true })); 
-app.use(express.json()); 
+// Global variables for Multiplayer Matchmaking (Socket-based)
+let waitingPlayer = null; // { userId: string, username: string, socket: Socket }
+let activeMatches = {}; // { matchId: { players: { socketId: { userId, username, score, socket } }, round: number, currentQuestion: object } }
 
 
-// --- 4. UTILITY FUNCTIONS ---
+// --- 3. UTILITY FUNCTIONS (UNCHANGED) ---\n
+/** Finds a country object by its name. */
+function findCountryByName(name) {
+    return flagData.find(f => f.country.toLowerCase() === name.toLowerCase());
+}
 
-function shuffleArray(array) {
-    for (let i = array.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [array[i], array[j]] = [array[j], array[i]];
+/** Finds a user in the in-memory database by ID. */
+function findUserById(id) {
+    return users.find(u => u.id === id);
+}
+
+/** Finds a user in the in-memory database by username. */
+function findUserByUsername(username) {
+    return users.find(u => u.username.toLowerCase() === username.toLowerCase());
+}
+
+/** Finds a user in the in-memory database by ID or creates a new one (for session testing). */
+function findOrCreateUser(id, username) {
+    let user = findUserById(id);
+    if (!user) {
+        user = { id, username, password: 'password', highScore: 0 }; // Simple default password
+        users.push(user);
+        console.log(`[AUTH] Created new test user: ${username}`);
     }
-    return array;
+    return user;
 }
 
-function generateMatchId() {
-    return Math.random().toString(36).substring(2, 8);
-}
+/** Generates a random set of options based on the correct country. */
+function generateOptions(correctCountry) {
+    const options = new Set([correctCountry.country]);
+    const allCountryNames = flagData.map(f => f.country);
 
-function selectUniqueRandom(sourceArr, count, excludeArr = []) {
-    if (!sourceArr || sourceArr.length === 0) return []; 
-    const selectionPool = sourceArr.filter(item => !excludeArr.includes(item));
-    return shuffleArray(selectionPool).slice(0, count);
-}
-
-function generateQuizOptions(correctCountry) {
-    const ALL_COUNTRIES_NAMES = flagData.map(flag => flag.country);
-    let distractors = [];
-    let groupCountries = null;
-    const requiredDistractors = 3; 
-
-    for (const key in CONFUSION_GROUPS_MAP) {
-        if (CONFUSION_GROUPS_MAP[key].includes(correctCountry)) {
-            groupCountries = CONFUSION_GROUPS_MAP[key];
-            break; 
+    // 1. Try to pull from a confusion group if available
+    for (const groupName in CONFUSION_GROUPS_MAP) {
+        if (CONFUSION_GROUPS_MAP[groupName].includes(correctCountry.country)) {
+            const group = CONFUSION_GROUPS_MAP[groupName].filter(c => c !== correctCountry.country);
+            // Add up to 2 other options from the group
+            while (options.size < 3 && group.length > 0) {
+                const randomIndex = Math.floor(Math.random() * group.length);
+                options.add(group.splice(randomIndex, 1)[0]);
+            }
+            break;
         }
     }
-    
-    if (groupCountries) {
-        const groupPool = groupCountries.filter(name => name !== correctCountry);
-        const similarFlags = selectUniqueRandom(groupPool, requiredDistractors);
-        distractors.push(...similarFlags);
-    }
-    
-    const remainingSlots = requiredDistractors - distractors.length; 
 
-    if (remainingSlots > 0) {
-        const chosenNames = [correctCountry, ...distractors];
-        const randomOutliers = selectUniqueRandom(ALL_COUNTRIES_NAMES, remainingSlots, chosenNames);
-        distractors.push(...randomOutliers);
-    }
-    
-    const finalOptions = [correctCountry, ...distractors];
-    
-    if (finalOptions.length !== 4) {
-        console.error(`Error generating options for ${correctCountry}. Using random fallback.`);
-        const backupDistractors = selectUniqueRandom(ALL_COUNTRIES_NAMES, 3, [correctCountry]);
-        return shuffleArray([correctCountry, ...backupDistractors]);
-    }
-    
-    return shuffleArray(finalOptions);
-}
-
-// RENAMED FUNCTION: startSimpleGameRound -> startSoloRound
-function startSoloRound(playerId, socket) { // ADDED socket argument
-    const game = simpleGames[playerId];
-    if (!game) {
-        console.error(`ERROR: Game object not found for playerId: ${playerId}`);
-        return;
-    }
-    
-    // Ensure flagData is present before proceeding
-    if (!flagData || flagData.length === 0) {
-        return socket.emit('server_error', { message: "Game data unavailable." });
+    // 2. Fill the rest with truly random options
+    while (options.size < 4) {
+        const randomCountryName = allCountryNames[Math.floor(Math.random() * allCountryNames.length)];
+        options.add(randomCountryName);
     }
 
-    game.currentQuestionIndex++;
-    
-    // Ensure the index calculation is correct for wrapping/restarting
-    const questionIndex = game.currentQuestionIndex % game.matchQuestions.length; 
-    const currentQuestion = game.matchQuestions[questionIndex];
-    
-    if (!currentQuestion || typeof currentQuestion.country !== 'string' || currentQuestion.country.length === 0) {
-        console.error("DATA ERROR: Current question object is invalid or country name is missing.");
-        return;
-    }
-    
-    console.log(`[SOLO] Starting Round ${game.currentStreak + 1}. Flag: ${currentQuestion.country}`);
-    
-    const options = generateQuizOptions(currentQuestion.country);
-    
-    // RENAMED EVENT: simple_new_round -> solo_new_round
-    io.to(playerId).emit('solo_new_round', {
-        streak: game.currentStreak,
-        highScore: game.highScore, 
-        image: currentQuestion.image,
-        options: options
-    });
-}
-
-function startMultiplayerRound(matchId) {
-    const match = activeMatches[matchId];
-    if (!match) return;
-
-    if (match.questionIndex >= MAX_ROUNDS - 1) {
-        endMatch(matchId);
-        return;
+    // Convert Set to Array and shuffle
+    let optionsArray = Array.from(options);
+    for (let i = optionsArray.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [optionsArray[i], optionsArray[j]] = [optionsArray[j], optionsArray[i]];
     }
 
-    match.questionIndex++;
-    match.currentFlag = match.questions[match.questionIndex];
-
-    Object.values(match.players).forEach(p => {
-        p.answeredThisRound = false;
-    });
-
-    const options = generateQuizOptions(match.currentFlag.country);
-
-    console.log(`[MATCH ${matchId}] Starting Round ${match.questionIndex + 1}. Flag: ${match.currentFlag.country}`);
-
-    io.to(matchId).emit('multiplayer_new_round', {
-        roundNumber: match.questionIndex + 1,
-        maxRounds: MAX_ROUNDS,
-        image: match.currentFlag.image,
-        options: options,
-        scores: Object.values(match.players).reduce((acc, p) => {
-            acc[p.username] = p.score;
-            return acc;
-        }, {})
-    });
-
-    match.roundTimer = setTimeout(() => {
-        startNextMultiplayerRound(matchId);
-    }, ROUND_TIME_LIMIT_MS);
-}
-
-function startNextMultiplayerRound(matchId) {
-    const match = activeMatches[matchId];
-    if (!match) return;
-    
-    if (match.questionIndex >= MAX_ROUNDS - 1) {
-        endMatch(matchId);
-    } else {
-        startMultiplayerRound(matchId);
-    }
-}
-
-function endMatch(matchId) {
-    const match = activeMatches[matchId];
-    if (!match) return;
-
-    const playerScores = Object.values(match.players).map(p => ({ username: p.username, score: p.score }));
-    playerScores.sort((a, b) => b.score - a.score);
-
-    const winner = playerScores[0].score > playerScores[1].score ? playerScores[0].username : 
-                   playerScores[0].score < playerScores[1].score ? playerScores[1].username : 'Tie';
-    
-    console.log(`[MATCH ${matchId}] Match Ended. Winner: ${winner}. Scores: ${playerScores[0].username} (${playerScores[0].score}) vs ${playerScores[1].username} (${playerScores[1].score})`);
-
-    io.to(matchId).emit('match_game_over', {
-        scores: playerScores,
-        winner: winner,
-    });
-    
-    delete activeMatches[matchId];
+    return optionsArray;
 }
 
 
-// --- 5. EXPRESS ROUTES (UNCHANGED) ---
+// --- 4. NEW SOLO GAME LOGIC (HTTP-BASED) ---
+
+/** Generates a new random question for the Solo Game. */
+function generateSimpleQuestion() {
+    // Select a random country
+    const randomIndex = Math.floor(Math.random() * flagData.length);
+    const correctCountry = flagData[randomIndex];
+
+    return {
+        id: correctCountry.id, // Not strictly needed, but useful for tracking
+        flagImage: correctCountry.image,
+        correctAnswer: correctCountry.country, // Stored server-side for validation
+        options: generateOptions(correctCountry)
+    };
+}
+
+// --- 5. EXPRESS ROUTES (HTTP) ---
+
+// Serve static files (HTML, CSS, client scripts)
+app.use(express.static(path.join(__dirname, '/')));
+
+// Root redirect to main page (which forces auth check)
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
 
+// Login Page
 app.get('/login', (req, res) => {
     res.sendFile(path.join(__dirname, 'login.html'));
 });
 
+// Signup Page
 app.get('/signup', (req, res) => {
     res.sendFile(path.join(__dirname, 'signup.html'));
 });
 
+// Simple Game Page (Now served via HTTP)
 app.get('/simple_game', (req, res) => {
+    // Basic auth check: ensures userId and username are present in query params
+    if (!req.query.userId || !req.query.username) {
+        return res.redirect('/login');
+    }
+    // Only serve the page. The client-side logic will handle API calls.
     res.sendFile(path.join(__dirname, 'simple_game.html'));
 });
 
-app.post('/signup', (req, res) => {
-    const { name, username, email, password } = req.body;
-    
-    if (!username || !password || !email) {
-        return res.status(400).send("Registration failed: Missing required fields.");
-    }
-
-    if (users.find(u => u.username === username)) {
-        return res.status(409).send("Registration failed: Username already exists.");
-    }
-    
-    try {
-        const newUser = {
-            id: 'user_' + Math.random().toString(36).substring(2, 10),
-            username: username,
-            email: email,
-            password: password, 
-            name: name,
-            highScore: 0,
-            createdAt: new Date().toISOString()
-        };
-        
-        users.push(newUser);
-        
-        // --- ADDED LOG ---
-        console.log(`✅ [SIGNUP] New user signed up: ${username} (ID: ${newUser.id}). Total users: ${users.length}`);
-        
-        // Log all users after successful sign-up
-        logAllUsers(); 
-        
-        res.redirect('/login?status=success&username=' + username);
-        
-    } catch (error) {
-        console.error("Signup error:", error);
-        res.status(500).send("Registration failed due to a server error.");
-    }
-});
-
-app.post('/login', async (req, res) => {
-    const { username, password } = req.body;
-    
-    const user = users.find(u => u.username === username);
-    if (!user) return res.status(401).send("Login failed: Invalid username or password.");
-
-    if (password.trim() === user.password.trim()) { 
-        const userId = user.id;
-        console.log(`✅ User logged in: ${username} (ID: ${userId})`);
-        res.redirect(`/?userId=${userId}&username=${username}`); 
-    } else {
-        console.log(`[LOGIN FAILED] Password mismatch for ${username}.`);
-        res.status(401).send("Login failed: Invalid username or password.");
-    }
-});
-
+// Logout Route (Clears session data for simplicity)
 app.get('/logout', (req, res) => {
-    res.redirect('/login');
+    // In a real app, this would destroy the session cookie/token. 
+    // Here, we just redirect to remove the query parameters.
+    res.redirect('/login?message=Logged out successfully.');
 });
 
 
-// --- 6. SOCKET.IO EVENT HANDLERS ---
-io.on('connection', (socket) => {
-    const userId = socket.handshake.query.userId;
-    let username = socket.handshake.query.username || 'Guest'; 
+// --- 5.1. AUTHENTICATION (POST ROUTES) ---
+
+app.post('/signup', (req, res) => {
+    const { username, password } = req.body;
+
+    if (findUserByUsername(username)) {
+        return res.redirect('/signup?error=Username already taken.');
+    }
+
+    // In-memory unique ID generation (simple timestamp + random)
+    const id = 'user-' + Date.now() + Math.floor(Math.random() * 1000);
+    users.push({ id, username, password, highScore: 0 }); // HighScore initialized at 0
+    console.log(`[AUTH] User signed up: ${username}`);
+    logAllUsers();
     
-    // Attach user/username to socket object for easy access
-    socket.userId = userId;
-    socket.username = username;
-    
-    const user = users.find(u => u.id === userId);
+    res.redirect(`/login?status=success&username=${username}`);
+});
+
+
+app.post('/login', (req, res) => {
+    const { username, password } = req.body;
+
+    const user = users.find(u => 
+        u.username.toLowerCase() === username.toLowerCase() && u.password === password
+    );
+
+    if (user) {
+        console.log(`[AUTH] User logged in: ${user.username}`);
+        // Pass essential data back in the URL for stateless authentication (for this test environment)
+        res.redirect(`/?userId=${user.id}&username=${user.username}`);
+    } else {
+        res.redirect('/login?error=Invalid username or password.');
+    }
+});
+
+
+// --- 5.2. SOLO GAME API ENDPOINTS (NEW HTTP LOGIC) ---
+
+/**
+ * Endpoint to start a new game or get the next question for a solo player.
+ */
+app.get('/api/simple/get_question', (req, res) => {
+    const userId = req.query.userId;
+    const user = findUserById(userId);
+
     if (!user) {
-        socket.emit('unauthorized_access');
+        return res.status(401).json({ error: 'User not authenticated.' });
+    }
+
+    // Start a new session or reset an existing one
+    if (!simpleGameSessions[userId] || req.query.reset === 'true') {
+        simpleGameSessions[userId] = { 
+            currentStreak: 0, 
+            lastQuestion: null,
+            highScore: user.highScore // Track user's best score
+        };
+        console.log(`[SOLO API] Session started/reset for ${user.username}`);
+    }
+
+    const question = generateSimpleQuestion();
+    
+    // Store the correct answer for the next validation request
+    simpleGameSessions[userId].lastQuestion = question;
+
+    // Return the data needed by the client (excluding the correct answer)
+    return res.json({
+        flagImage: question.flagImage,
+        options: question.options,
+        currentStreak: simpleGameSessions[userId].currentStreak,
+        highScore: simpleGameSessions[userId].highScore
+    });
+});
+
+/**
+ * Endpoint to submit an answer and get the result.
+ */
+app.post('/api/simple/submit_answer', (req, res) => {
+    const { userId, answer } = req.body;
+    const user = findUserById(userId);
+    const session = simpleGameSessions[userId];
+
+    if (!user || !session || !session.lastQuestion) {
+        return res.status(400).json({ error: 'Invalid session or missing question data.' });
+    }
+
+    const correct = session.lastQuestion.correctAnswer;
+    const isCorrect = (answer === correct);
+
+    let finalStreak = session.currentStreak;
+    let newHighScore = user.highScore;
+    let gameStatus = 'continue'; // default
+
+    if (isCorrect) {
+        session.currentStreak += 1;
+        
+        // Update high score if current streak exceeds it
+        if (session.currentStreak > user.highScore) {
+            user.highScore = session.currentStreak;
+            newHighScore = user.highScore;
+        }
+        finalStreak = session.currentStreak;
+        console.log(`[SOLO API] Correct answer for ${user.username}. Streak: ${finalStreak}`);
+
+    } else {
+        // Game Over: reset streak and update user data
+        gameStatus = 'game_over';
+        finalStreak = session.currentStreak; // The streak achieved
+        session.currentStreak = 0; // Reset for next game
+        console.log(`[SOLO API] Incorrect answer for ${user.username}. Game Over. Streak: ${finalStreak}`);
+    }
+
+    // Clear the question to prevent double submission
+    session.lastQuestion = null; 
+
+    // Send the result back to the client
+    return res.json({
+        isCorrect: isCorrect,
+        correctAnswer: correct,
+        currentStreak: finalStreak,
+        highScore: newHighScore,
+        status: gameStatus
+    });
+});
+
+
+// --- 6. SOCKET.IO MULTIPLAYER LOGIC (UNCHANGED CORE LOGIC) ---
+
+io.on('connection', (socket) => {
+    // The socket only connects now if the user hits the multiplayer button
+    // It should have query parameters if it connected successfully via client_auth_menu.js
+
+    const userId = socket.handshake.query.userId;
+    const username = socket.handshake.query.username;
+
+    if (!userId || !username) {
+        console.log(`[SOCKET AUTH] Anonymous connection rejected.`);
         return socket.disconnect(true);
     }
+
+    const user = findOrCreateUser(userId, username);
+    socket.emit('auth_successful', { userId: user.id, username: user.username });
     
-    username = user.username;
-    console.log(`[SOCKET] User connected: ${username} (ID: ${userId})`);
-    socket.emit('auth_successful', { username: username });
+    console.log(`[SOCKET] User connected: ${username} (${socket.id})`);
 
-    // --- SIMPLE GAME HANDLERS (FIXED AND LOGGED) ---
-    // RENAMED EVENT: start_simple_session -> start_solo_game
-    socket.on('start_solo_game', () => { 
-        const logUsername = socket.username || 'Unknown Player';
-        console.log(`[SOLO GAME] Player ${logUsername} started a new solo game.`); // ADDED LOG
 
-        if (!flagData || flagData.length === 0) return socket.emit('server_error', { message: "Game data is unavailable." });
+    // --- 6.1. MULTIPLAYER: START MATCHMAKING ---
 
-        if (simpleGames[socket.id]) delete simpleGames[socket.id]; 
+    socket.on('start_multiplayer', () => {
+        if (waitingPlayer && waitingPlayer.userId !== userId) {
+            
+            // Player 2 found: Start the match!
+            const matchId = `match-${Date.now()}`;
+            const player1 = waitingPlayer;
+            const player2 = { userId, username, socket };
+            
+            activeMatches[matchId] = {
+                players: { 
+                    [player1.socket.id]: { userId: player1.userId, username: player1.username, score: 0, socket: player1.socket },
+                    [player2.socket.id]: { userId: player2.userId, username: player2.username, score: 0, socket: player2.socket }
+                },
+                round: 0,
+                currentQuestion: null,
+                answersReceived: 0,
+                answerTimestamps: {}
+            };
 
-        const shuffledQuestions = shuffleArray([...flagData]); 
-        
-        simpleGames[socket.id] = {
-            id: generateMatchId(), 
-            playerId: socket.id, 
-            currentStreak: 0,
-            highScore: user.highScore || 0, 
-            matchQuestions: shuffledQuestions, 
-            currentQuestionIndex: -1,
-        };
-        
-        startSoloRound(socket.id, socket); // Updated function name and added socket
-    });
+            // Clear the waiting list
+            waitingPlayer = null;
 
-    // RENAMED EVENT: submit_simple_answer -> submit_solo_answer
-    socket.on('submit_solo_answer', (data) => { 
-        // RENAMED FUNCTION: startSimpleGameRound -> startSoloRound
-        const game = simpleGames[socket.id];
-        if (!game || game.currentQuestionIndex === -1) return;
+            // Create a room and notify both players
+            player1.socket.join(matchId);
+            player2.socket.join(matchId);
 
-        const questionIndex = game.currentQuestionIndex % game.matchQuestions.length;
-        const question = game.matchQuestions[questionIndex];
-        const isCorrect = data.answer === question.country;
-        
-        // RENAMED EVENT: simple_game_feedback -> solo_feedback
-        socket.emit('solo_feedback', {
-            isCorrect: isCorrect,
-            correctAnswer: question.country
-        });
+            console.log(`[MATCH ${matchId}] Match started between ${player1.username} and ${player2.username}`);
 
-        if (isCorrect) {
-            game.currentStreak++;
-            startSoloRound(socket.id, socket); // Updated function name and added socket
+            io.to(matchId).emit('match_found', { 
+                matchId: matchId,
+                player1: { userId: player1.userId, username: player1.username, score: 0, isP1: true },
+                player2: { userId: player2.userId, username: player2.username, score: 0, isP1: false },
+                round: 0
+            });
+
+            // Start the first round after a small delay to allow clients to update UI
+            setTimeout(() => startNewMultiplayerRound(matchId), 1000);
+
+        } else if (!waitingPlayer) {
+            // Player 1: Wait for opponent
+            waitingPlayer = { userId, username, socket };
+            console.log(`[MATCHMAKING] ${username} is now waiting for an opponent.`);
             
         } else {
-            const finalStreak = game.currentStreak;
-            if (finalStreak > user.highScore) { 
-                user.highScore = finalStreak; 
-                game.highScore = finalStreak;
-                console.log(`⭐ High score updated for ${user.username}: ${finalStreak}`);
-            }
-            
-            // RENAMED EVENT: simple_game_over -> solo_game_over
-            socket.emit('solo_game_over', {
-                score: finalStreak, // Updated property name to match client
-                highScore: user.highScore
-            });
+            // Self-reconnect or repeated click
+            socket.emit('status_update', 'Already waiting for an opponent. Please wait...');
         }
     });
 
-    // --- MULTIPLAYER HANDLERS (STABILITY FIX) ---
-    // ... (Multiplayer handlers remain here) ...
-    socket.on('start_multiplayer', () => {
-        // ... (rest of start_multiplayer logic) ...
-    });
+    // --- 6.2. MULTIPLAYER: GAME ROUND LOGIC ---
 
-    socket.on('submit_multiplayer_answer', (data) => {
-        // ... (rest of submit_multiplayer_answer logic) ...
-    });
+    function startNewMultiplayerRound(matchId) {
+        const match = activeMatches[matchId];
+        if (!match) return; 
 
-    // --- DISCONNECT HANDLER (UNCHANGED) ---
-    socket.on('disconnect', () => { 
-        delete simpleGames[socket.id];
+        // Check for max rounds (e.g., 5 rounds)
+        if (match.round >= 5) {
+            return endMultiplayerMatch(matchId);
+        }
+
+        // Increment round
+        match.round++;
+        match.answersReceived = 0;
+        match.answerTimestamps = {};
+
+        // Generate the new question
+        const question = generateSimpleQuestion(); // Reuse the core question generator
+        match.currentQuestion = question;
         
-        if (waitingPlayer && waitingPlayer.socketId === socket.id) {
-            console.log(`[MULTIPLAYER] Cleared waiting player: ${username}`);
+        // Notify all players in the room
+        io.to(matchId).emit('new_round_data', {
+            round: match.round,
+            flagImage: question.flagImage,
+            options: question.options,
+            scores: getMatchScores(match)
+        });
+
+        console.log(`[MATCH ${matchId}] Round ${match.round} started. Flag: ${question.correctAnswer}`);
+
+        // Set a timeout for the round (e.g., 15 seconds)
+        // setTimeout(() => checkEndOfRound(matchId), 15000); // 15 seconds per round
+    }
+
+    function endMultiplayerMatch(matchId) {
+        const match = activeMatches[matchId];
+        if (!match) return;
+
+        const scores = getMatchScores(match);
+        let winnerName, winnerScore = -1;
+
+        // Determine winner
+        const p1 = Object.values(match.players)[0];
+        const p2 = Object.values(match.players)[1];
+        
+        if (scores[p1.userId] > scores[p2.userId]) {
+            winnerName = p1.username;
+            winnerScore = scores[p1.userId];
+        } else if (scores[p2.userId] > scores[p1.userId]) {
+            winnerName = p2.username;
+            winnerScore = scores[p2.userId];
+        } else {
+            winnerName = "Tie";
+        }
+
+        console.log(`[MATCH ${matchId}] Match ended. Winner: ${winnerName}. Scores: P1:${scores[p1.userId]}, P2:${scores[p2.userId]}`);
+
+        io.to(matchId).emit('match_ended', {
+            winner: winnerName,
+            finalScores: scores
+        });
+
+        // Clean up match
+        delete activeMatches[matchId];
+    }
+
+    function getMatchScores(match) {
+        const scores = {};
+        for (const socketId in match.players) {
+            const player = match.players[socketId];
+            scores[player.userId] = player.score;
+        }
+        return scores;
+    }
+
+
+    socket.on('submit_multiplayer_answer', ({ matchId, answer }) => {
+        const match = activeMatches[matchId];
+        if (!match || match.answersReceived >= 2 || match.answerTimestamps[userId]) return;
+
+        const player = match.players[socket.id];
+        const currentTime = Date.now();
+        match.answerTimestamps[userId] = currentTime;
+
+        const correct = match.currentQuestion.correctAnswer;
+        const isCorrect = (answer === correct);
+        
+        let points = 0;
+        if (isCorrect) {
+            // Simple scoring: 1 point per correct answer
+            points = 1; 
+            player.score += points;
+            console.log(`[MATCH ${matchId}] ${player.username} submitted correct answer.`);
+        } else {
+            console.log(`[MATCH ${matchId}] ${player.username} submitted incorrect answer.`);
+        }
+        
+        match.answersReceived++;
+
+        // Notify opponent that the answer has been submitted
+        socket.broadcast.to(matchId).emit('opponent_answered', {
+            username: player.username
+        });
+        
+        // Notify the player of their result
+        socket.emit('answer_result', {
+            isCorrect: isCorrect,
+            correctAnswer: correct,
+            score: player.score,
+            timeTaken: (currentTime - (match.roundStartTime || 0)) / 1000 // Simple time tracking
+        });
+
+
+        // Check if both players have answered
+        if (match.answersReceived === 2) {
+            console.log(`[MATCH ${matchId}] Both players answered round ${match.round}.`);
+            // Wait a moment for clients to see results, then start next round
+            setTimeout(() => startNewMultiplayerRound(matchId), 3000); 
+        }
+    });
+
+
+    // --- 6.3. MULTIPLAYER: DISCONNECT HANDLING (Updated Log) ---
+
+    socket.on('disconnect', () => {
+        const user = findUserById(userId);
+        const username = user ? user.username : 'Unknown';
+        console.log(`[SOCKET DISCONNECT] ${username} (${socket.id}) disconnected.`);
+
+        // 1. Check if the disconnected user was in the waiting list
+        if (waitingPlayer && waitingPlayer.userId === userId) {
+            console.log(`[MATCHMAKING] Cleared waiting player: ${username}`);
             waitingPlayer = null;
         }
 
+        // 2. Check if the disconnected user was in an active match
         for (const matchId in activeMatches) {
             const match = activeMatches[matchId];
             if (match.players[socket.id]) {
                 console.log(`[MATCH ${matchId}] Player ${username} disconnected. Ending match.`);
                 
+                // Get the opponent's socket ID (which is the key in the match.players object)
                 const opponentSocketId = Object.keys(match.players).find(id => id !== socket.id);
                 if (opponentSocketId) {
                     const opponentSocket = match.players[opponentSocketId].socket;
@@ -431,7 +543,7 @@ io.on('connection', (socket) => {
 });
 
 
-// --- 7. SERVER STARTUP (UNCHANGED) ---
+// --- 7. SERVER STARTUP ---
 const PORT = process.env.PORT || 3000;
 
 server.listen(PORT, () => {
@@ -440,3 +552,4 @@ server.listen(PORT, () => {
     console.log('1. Go to /signup to create an account.');
     console.log('2. Immediately go to /login to test authentication.');
 });
+
