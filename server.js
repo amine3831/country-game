@@ -326,6 +326,7 @@ io.on('connection', (socket) => {
     }
 
     const user = findOrCreateUser(userId, username);
+    // Send confirmation back to the client that authentication was successful.
     socket.emit('auth_successful', { userId: user.id, username: user.username });
     
     console.log(`[SOCKET] User connected: ${username} (${socket.id})`);
@@ -397,6 +398,7 @@ io.on('connection', (socket) => {
         match.round++;
         match.answersReceived = 0;
         match.answerTimestamps = {};
+        match.roundStartTime = Date.now(); // Record start time for time tracking
 
         // Generate the new question
         const question = generateSimpleQuestion(); // Reuse the core question generator
@@ -464,6 +466,8 @@ io.on('connection', (socket) => {
 
         const player = match.players[socket.id];
         const currentTime = Date.now();
+        const timeTaken = (currentTime - match.roundStartTime) / 1000;
+        
         match.answerTimestamps[userId] = currentTime;
 
         const correct = match.currentQuestion.correctAnswer;
@@ -491,7 +495,7 @@ io.on('connection', (socket) => {
             isCorrect: isCorrect,
             correctAnswer: correct,
             score: player.score,
-            timeTaken: (currentTime - (match.roundStartTime || 0)) / 1000 // Simple time tracking
+            timeTaken: timeTaken
         });
 
 
@@ -552,4 +556,3 @@ server.listen(PORT, () => {
     console.log('1. Go to /signup to create an account.');
     console.log('2. Immediately go to /login to test authentication.');
 });
-
