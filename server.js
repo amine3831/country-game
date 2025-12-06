@@ -1,4 +1,4 @@
-// server.js (FULL FIXED VERSION)
+// server.js (FULL FIXED VERSION - Solo Mode Removed)
 
 // --- 1. CORE IMPORTS & SERVER SETUP ---
 const path = require('path');
@@ -117,10 +117,7 @@ app.get('/logout', (req, res) => {
     res.redirect('/login');
 });
 
-// --- ROUTE: SIMPLE GAME ---
-app.get('/simple_game', (req, res) => {
-    res.sendFile(path.join(__dirname, 'simple_game.html'));
-});
+// --- NOTE: /simple_game ROUTE REMOVED ---
 
 
 // --- 4. GAME LOGIC UTILITIES ---
@@ -220,17 +217,10 @@ io.on('connection', (socket) => {
     socket.emit('auth_successful', { username: username });
 
 
-    // 6.2 SIMPLE GAME HANDLER (Separate event for simple mode)
-    socket.on('submit_simple_answer', ({ answer }) => {
-        // This is only a placeholder for future simple game logic persistence.
-        // The simple game logic is mostly client-side for immediate feedback.
-        console.log(`[SIMPLE] ${username} submitted answer: ${answer}`);
-        // For now, simple game logic is handled entirely by client-side code in simple_game_logic.js 
-        // using the in-memory flagData.
-    });
+    // --- NOTE: SIMPLE GAME SOCKET HANDLER REMOVED ---
 
 
-    // 6.3 MULTIPLAYER MATCHMAKING HANDLER
+    // 6.2 MULTIPLAYER MATCHMAKING HANDLER
     socket.on('start_multiplayer', () => {
         console.log(`[MULTIPLAYER] Player ${username} requesting match.`);
         
@@ -298,7 +288,7 @@ io.on('connection', (socket) => {
         }
     });
     
-    // 6.4 SUBMIT ANSWER HANDLER
+    // 6.3 SUBMIT ANSWER HANDLER
     socket.on('submit_multiplayer_answer', ({ matchId, answer }) => {
         const match = activeMatches[matchId];
         if (!match) return; // Match not found
@@ -343,20 +333,6 @@ io.on('connection', (socket) => {
         const player1 = match.players[playerIds[0]];
         const player2 = match.players[playerIds[1]];
         
-        // Get the answer submitted by each player (NOTE: Need to store answer submitted by player previously)
-        // Since we only track if they answered, we assume the first player to answer is fastest.
-        
-        // For now, let's simplify and just check correctness
-        // IMPORTANT: In a real implementation, the submitted 'answer' string should be stored in the player object 
-        // upon submission and retrieved here. Since the client only sends 'answer' in the submission event, 
-        // and we don't store it, this part needs a minor assumption or refinement.
-        // For simplicity, we are going to use the client to determine correctness for now, and the server 
-        // focuses on round progression. (This will be fixed later to be server-authoritative).
-        
-        // Let's assume the player object has a .submittedAnswer field set in 6.4 (submit_multiplayer_answer)
-        // Since the current client doesn't send the answer, we will skip score update for now to debug UI.
-        // FIX LATER: Player object must store submittedAnswer in 6.4.
-
         // For now, just send the round result without scores (or mock scores)
         const roundResult = {
             roundNumber: match.currentRound,
@@ -409,7 +385,7 @@ io.on('connection', (socket) => {
     }
 
 
-    // 6.5 DISCONNECT HANDLER
+    // 6.4 DISCONNECT HANDLER
     socket.on('disconnect', () => {
         console.log(`User disconnected: ${username} (${userId})`);
 
@@ -454,3 +430,4 @@ server.listen(PORT, () => {
     console.log('1. Go to /signup to create an account.');
     console.log('2. Immediately go to /login to test authentication.');
 });
+
