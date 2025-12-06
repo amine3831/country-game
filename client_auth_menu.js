@@ -16,7 +16,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (userId && username) {
         
-        // --- CRITICAL FIX: Ensure the correct container is visible on load ---
+        // --- CRITICAL: Ensure the correct container is visible on load ---
         if (modeSelectionEl) modeSelectionEl.style.display = 'flex';
         if (gameAreaEl) gameAreaEl.style.display = 'none';
 
@@ -25,18 +25,8 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('welcome-message').style.display = 'flex';
 
         // --- 2. GAME MODE SELECTION ---
-        const simpleGameButton = document.getElementById('start-simple-button');
+        // Note: Simple Game Button logic removed entirely.
         const multiplayerButton = document.getElementById('start-multiplayer-button');
-        
-        // Simple Game Handler (HTTP-ONLY)
-        if (simpleGameButton) {
-            simpleGameButton.addEventListener('click', () => {
-                if (modeSelectionEl) modeSelectionEl.style.display = 'none';
-                
-                // Navigate to the simple game page. NO SOCKET is created here.
-                window.location.href = '/simple_game' + window.location.search;
-            });
-        }
         
         // Multiplayer Handler (SOCKET CREATED HERE)
         if (multiplayerButton) {
@@ -121,3 +111,4 @@ if (logoutButton) {
         window.location.href = '/logout';
     });
 }
+
