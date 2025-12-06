@@ -430,4 +430,3 @@ server.listen(PORT, () => {
     console.log('1. Go to /signup to create an account.');
     console.log('2. Immediately go to /login to test authentication.');
 });
-
